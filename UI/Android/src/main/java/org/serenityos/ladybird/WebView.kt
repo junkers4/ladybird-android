@@ -34,29 +34,19 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
     private val flinger = OverScroller(context)
     private var lastFlingX = 0
     private var lastFlingY = 0
-
-    // --- Async compositing state -------------------------------------------------
-    // The engine only repaints in response to wheel/zoom events sent over IPC, so a
-    // naive "send event -> wait for repaint" loop stutters whenever the engine can't
-    // hit 60fps. To stay smooth we composite scroll and pinch on the Android side
-    // immediately and reconcile once the freshly painted engine frame arrives.
-    //
-    // composScroll{X,Y}: how far the displayed bitmap is currently shifted from the
-    // engine's painted position (instant visual feedback for the finger).
-    // outstandingWheel{X,Y}: wheel deltas sent to the engine but not yet reflected in
-    // a painted frame; subtracted from composScroll when the engine paints.
-    private var composScrollX = 0f
-    private var composScrollY = 0f
-    private var outstandingWheelX = 0
-    private var outstandingWheelY = 0
-
-    // Visual pinch scale applied to the bitmap during a pinch gesture. The real
-    // engine zoom is only applied once the gesture ends; this keeps the pinch itself
-    // smooth instead of triggering a full re-layout on every finger movement.
-    private var pinchScale = 1f
-    private var pinchFocusX = 0f
-    private var pinchFocusY = 0f
-    private var pendingZoomSteps = 0
+    // Wheel-event throttling. Sending a wheel IPC on every single ACTION_MOVE
+    // (120Hz+ touch sampling) overwhelms WebContent: each one triggers a full
+    // layout + viewport repaint round-trip, so the engine never catches up and
+    // the drag feels stuck. Accumulate deltas and flush at most once per
+    // animation frame (~16ms), plus on UP to deliver the tail.
+    private var pendingWheelDx = 0
+    private var pendingWheelDy = 0
+    private var pendingWheelX = 0f
+    private var pendingWheelY = 0f
+    private var pendingWheelRawX = 0f
+    private var pendingWheelRawY = 0f
+    private var lastWheelFlushNs = 0L
+    private val wheelFlushIntervalNs = 16_000_000L
     var onLoadStart: (url: String, isRedirect: Boolean) -> Unit = { _, _ -> }
     var onLoadFinish: (url: String) -> Unit = { }
     var onTitleChange: (title: String) -> Unit = { }
@@ -74,49 +64,26 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
             if (!pinchZoomEnabled) return false
             accumulated = 0.0
-            pendingZoomSteps = 0
-            pinchScale = 1f
-            pinchFocusX = detector.focusX
-            pinchFocusY = detector.focusY
             isScalingGesture = true
             flinger.forceFinished(true)
             return true
         }
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            // Scale the displayed bitmap immediately for buttery pinch feedback.
-            // The real engine zoom (which forces a re-layout + full repaint) is
-            // deferred to onScaleEnd so we don't thrash the engine mid-gesture.
-            pinchScale = (pinchScale * detector.scaleFactor).coerceIn(0.2f, 5.0f)
-            pinchFocusX = detector.focusX
-            pinchFocusY = detector.focusY
-
-            // Track how many discrete engine zoom steps we'll need to apply so the
-            // final engine zoom lands close to what the user pinched to.
+            // Accumulate scale factor and apply discrete zoom in/out steps so we
+            // stay aligned with the engine's preferred zoom ladder.
             accumulated += (detector.scaleFactor - 1.0)
-            while (accumulated > 0.10) { pendingZoomSteps++; accumulated -= 0.10 }
-            while (accumulated < -0.10) { pendingZoomSteps--; accumulated += 0.10 }
-
-            postInvalidateOnAnimation()
+            while (accumulated > 0.10) {
+                viewImpl.zoomIn(); accumulated -= 0.10
+            }
+            while (accumulated < -0.10) {
+                viewImpl.zoomOut(); accumulated += 0.10
+            }
             return true
         }
 
         override fun onScaleEnd(detector: ScaleGestureDetector) {
             isScalingGesture = false
-            // Apply the accumulated zoom to the engine in one batch. The new engine
-            // frame (rendered at the new zoom) will arrive via onEnginePainted(),
-            // which resets pinchScale so the visual scale hands off without flicker.
-            if (pendingZoomSteps > 0) {
-                repeat(pendingZoomSteps) { viewImpl.zoomIn() }
-            } else if (pendingZoomSteps < 0) {
-                repeat(-pendingZoomSteps) { viewImpl.zoomOut() }
-            } else {
-                // No real zoom change: drop the visual scale right away.
-                pinchScale = 1f
-                postInvalidateOnAnimation()
-            }
-            pendingZoomSteps = 0
-            syncViewport()
         }
     }).apply {
         isQuickScaleEnabled = false
@@ -275,24 +242,20 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                     isScrollingGesture = true
 
                 if (isScrollingGesture) {
-                    // Send the scroll to the engine AND shift the displayed bitmap
-                    // by the same delta right now. This gives instant 1:1 finger
-                    // tracking even while the engine is still painting the previous
-                    // frame; onEnginePainted() reconciles the offset once the engine
-                    // catches up. The previous code waited for the engine round-trip
-                    // on every pixel, which is what made dragging feel stuck.
                     val stepDx = event.x - lastX
                     val stepDy = event.y - lastY
                     val wheelDx = (-stepDx).roundToInt()
                     val wheelDy = (-stepDy).roundToInt()
                     if (wheelDx != 0 || wheelDy != 0) {
-                        composScrollX += wheelDx
-                        composScrollY += wheelDy
-                        outstandingWheelX += wheelDx
-                        outstandingWheelY += wheelDy
-                        clampComposScroll()
-                        viewImpl.wheelEvent(event.x, event.y, event.rawX, event.rawY, wheelDx, wheelDy)
-                        postInvalidateOnAnimation()
+                        pendingWheelDx += wheelDx
+                        pendingWheelDy += wheelDy
+                        pendingWheelX = event.x
+                        pendingWheelY = event.y
+                        pendingWheelRawX = event.rawX
+                        pendingWheelRawY = event.rawY
+                        val now = System.nanoTime()
+                        if (now - lastWheelFlushNs >= wheelFlushIntervalNs)
+                            flushWheel(now)
                     }
                 }
 
@@ -307,6 +270,7 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                     viewImpl.mouseEvent(MotionEvent.ACTION_UP, event.x, event.y, event.rawX, event.rawY)
                     performClick()
                 } else {
+                    flushWheel(System.nanoTime())
                     // If user swiped down from the very top while not scrolled,
                     // emit a pull-to-refresh signal. Real overscroll detection
                     // would require knowing the current scroll position from
@@ -320,6 +284,7 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                flushWheel(System.nanoTime())
                 isScrollingGesture = false
                 return true
             }
@@ -328,6 +293,14 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                 return super.onTouchEvent(event)
             }
         }
+    }
+
+    private fun flushWheel(now: Long) {
+        if (pendingWheelDx == 0 && pendingWheelDy == 0) return
+        viewImpl.wheelEvent(pendingWheelX, pendingWheelY, pendingWheelRawX, pendingWheelRawY, pendingWheelDx, pendingWheelDy)
+        pendingWheelDx = 0
+        pendingWheelDy = 0
+        lastWheelFlushNs = now
     }
 
     override fun computeScroll() {
@@ -339,13 +312,6 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
             lastFlingX = x
             lastFlingY = y
             if (dx != 0 || dy != 0) {
-                // Same predictive compositing as touch drag so momentum flings
-                // track smoothly instead of waiting on the engine each frame.
-                composScrollX += dx
-                composScrollY += dy
-                outstandingWheelX += dx
-                outstandingWheelY += dy
-                clampComposScroll()
                 viewImpl.wheelEvent(
                     width / 2f, height / 2f,
                     width / 2f, height / 2f,
@@ -354,30 +320,6 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
             }
             postInvalidateOnAnimation()
         }
-    }
-
-    /** Keep the predicted offset bounded so an edge or a slow engine frame can't
-     *  open a huge blank gap; reconciliation normally keeps this near zero. */
-    private fun clampComposScroll() {
-        val maxX = width.toFloat().coerceAtLeast(1f)
-        val maxY = height.toFloat().coerceAtLeast(1f)
-        composScrollX = composScrollX.coerceIn(-maxX, maxX)
-        composScrollY = composScrollY.coerceIn(-maxY, maxY)
-    }
-
-    /** Called from the native bridge when the engine has painted a fresh frame.
-     *  The new front bitmap already reflects every wheel delta we've sent, so we
-     *  subtract the outstanding deltas from the visual offset (handing the motion
-     *  off from our predicted translate to the engine's real render) and drop the
-     *  pinch scale now that the engine has re-rendered at the new zoom. */
-    fun onEnginePainted() {
-        composScrollX -= outstandingWheelX
-        composScrollY -= outstandingWheelY
-        outstandingWheelX = 0
-        outstandingWheelY = 0
-        clampComposScroll()
-        if (!isScalingGesture && pinchScale != 1f)
-            pinchScale = 1f
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -402,23 +344,8 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        viewImpl.drawIntoBitmap(contentBitmap)
-
-        val transformed = composScrollX != 0f || composScrollY != 0f || pinchScale != 1f
-        if (transformed) {
-            canvas.save()
-            // Pinch zoom is applied around the gesture focus; scroll is a straight
-            // translate of the painted bitmap. Both are purely visual and reconciled
-            // against the engine in onEnginePainted().
-            if (pinchScale != 1f)
-                canvas.scale(pinchScale, pinchScale, pinchFocusX, pinchFocusY)
-            if (composScrollX != 0f || composScrollY != 0f)
-                canvas.translate(-composScrollX, -composScrollY)
-            canvas.drawBitmap(contentBitmap, 0f, 0f, null)
-            canvas.restore()
-        } else {
-            canvas.drawBitmap(contentBitmap, 0f, 0f, null)
-        }
+        viewImpl.drawIntoBitmap(contentBitmap);
+        canvas.drawBitmap(contentBitmap, 0f, 0f, null)
     }
 
     companion object {
