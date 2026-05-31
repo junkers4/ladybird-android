@@ -158,10 +158,6 @@ void WebViewImplementationNative::paint_into_bitmap(void* android_bitmap_raw, An
     auto android_bitmap = MUST(Gfx::Bitmap::create_wrapper(to_gfx_bitmap_format(info.format), Gfx::AlphaType::Premultiplied, { info.width, info.height }, info.stride, android_bitmap_raw));
     auto painter = Gfx::Painter::create(android_bitmap);
 
-    // Always start with a neutral background so partial-source renders don't show through to
-    // the gray Android window background on the side(s).
-    painter->fill_rect(android_bitmap->rect().to_type<float>(), Gfx::Color::White);
-
     RefPtr<Gfx::Bitmap> bitmap;
     Gfx::IntSize painted_size;
     if (m_client_state.has_usable_bitmap && m_client_state.front_bitmap.shared_image_buffer) {
@@ -171,14 +167,30 @@ void WebViewImplementationNative::paint_into_bitmap(void* android_bitmap_raw, An
         bitmap = m_backup_shared_image_buffer->bitmap();
         painted_size = m_backup_bitmap_size.to_type<int>();
     }
+
+    // Only fill the *uncovered* margin (if any) with white. The previous code
+    // did a full-screen fill on every frame, which on a 1080x2424 surface meant
+    // ~10MB of unnecessary writes per scroll frame — a major scroll-jank cost
+    // on software rendering. When the engine bitmap covers the whole surface
+    // (the common case), skip the fill entirely.
+    Gfx::IntRect const surface_rect = android_bitmap->rect();
+    Gfx::IntRect covered = bitmap ? Gfx::IntRect { {}, painted_size.is_empty() ? bitmap->size() : painted_size } : Gfx::IntRect {};
+    covered.intersect(surface_rect);
+    if (covered != surface_rect) {
+        if (covered.is_empty()) {
+            painter->fill_rect(surface_rect.to_type<float>(), Gfx::Color::White);
+        } else {
+            // Right margin.
+            if (covered.right() < surface_rect.right())
+                painter->fill_rect(Gfx::FloatRect { static_cast<float>(covered.right()), 0.0f, static_cast<float>(surface_rect.right() - covered.right()), static_cast<float>(surface_rect.height()) }, Gfx::Color::White);
+            // Bottom margin.
+            if (covered.bottom() < surface_rect.bottom())
+                painter->fill_rect(Gfx::FloatRect { 0.0f, static_cast<float>(covered.bottom()), static_cast<float>(covered.right()), static_cast<float>(surface_rect.bottom() - covered.bottom()) }, Gfx::Color::White);
+        }
+    }
+
     if (bitmap) {
-        // The backing store may be larger than the actually-painted region (WebContent allocates a
-        // bitmap big enough for the largest viewport seen so far, but only paints `last_painted_size`).
-        // Use only the valid painted region as the source; if it's smaller than the Android surface,
-        // we draw 1:1 from origin and leave the prefill (white) where there is no content yet.
-        auto src_rect = Gfx::IntRect { {}, painted_size.is_empty() ? bitmap->size() : painted_size };
-        // Clamp to bitmap bounds just in case.
-        src_rect.intersect(bitmap->rect());
+        auto src_rect = covered;
         auto dst_rect = Gfx::FloatRect { 0.0f, 0.0f, static_cast<float>(src_rect.width()), static_cast<float>(src_rect.height()) };
         // Wrap the front buffer directly — no per-frame clone. The other UIs (Qt, AppKit)
         // also read the front_bitmap by reference. This is a major smoothness win because

@@ -34,19 +34,26 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
     private val flinger = OverScroller(context)
     private var lastFlingX = 0
     private var lastFlingY = 0
-    // Wheel-event throttling. Sending a wheel IPC on every single ACTION_MOVE
-    // (120Hz+ touch sampling) overwhelms WebContent: each one triggers a full
-    // layout + viewport repaint round-trip, so the engine never catches up and
-    // the drag feels stuck. Accumulate deltas and flush at most once per
-    // animation frame (~16ms), plus on UP to deliver the tail.
+    // Wheel-event backpressure. Sending wheel IPC at 120Hz overwhelms WebContent:
+    // each event triggers full layout + viewport repaint. The fix is *engine-paced*:
+    // only emit a wheel event when the engine has acknowledged the previous one
+    // (signalled via onEnginePainted, which fires on every invalidateLayout). In
+    // the meantime, deltas accumulate and the next emit carries the whole batch.
+    // This adapts automatically to engine speed: fast pages get near-60Hz, slow
+    // pages get coarser but never queue up dead frames.
     private var pendingWheelDx = 0
     private var pendingWheelDy = 0
     private var pendingWheelX = 0f
     private var pendingWheelY = 0f
     private var pendingWheelRawX = 0f
     private var pendingWheelRawY = 0f
-    private var lastWheelFlushNs = 0L
-    private val wheelFlushIntervalNs = 16_000_000L
+    private var wheelInFlight = false
+    private val frameCallback = android.view.Choreographer.FrameCallback {
+        if (!wheelInFlight && (pendingWheelDx != 0 || pendingWheelDy != 0))
+            flushWheel()
+        if (pendingWheelDx != 0 || pendingWheelDy != 0 || isScrollingGesture)
+            android.view.Choreographer.getInstance().postFrameCallback(this.frameCallback)
+    }
     var onLoadStart: (url: String, isRedirect: Boolean) -> Unit = { _, _ -> }
     var onLoadFinish: (url: String) -> Unit = { }
     var onTitleChange: (title: String) -> Unit = { }
@@ -253,9 +260,10 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                         pendingWheelY = event.y
                         pendingWheelRawX = event.rawX
                         pendingWheelRawY = event.rawY
-                        val now = System.nanoTime()
-                        if (now - lastWheelFlushNs >= wheelFlushIntervalNs)
-                            flushWheel(now)
+                        if (!wheelInFlight)
+                            flushWheel()
+                        else
+                            android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
                     }
                 }
 
@@ -270,7 +278,7 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                     viewImpl.mouseEvent(MotionEvent.ACTION_UP, event.x, event.y, event.rawX, event.rawY)
                     performClick()
                 } else {
-                    flushWheel(System.nanoTime())
+                    flushWheel()
                     // If user swiped down from the very top while not scrolled,
                     // emit a pull-to-refresh signal. Real overscroll detection
                     // would require knowing the current scroll position from
@@ -284,7 +292,7 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
             }
 
             MotionEvent.ACTION_CANCEL -> {
-                flushWheel(System.nanoTime())
+                flushWheel()
                 isScrollingGesture = false
                 return true
             }
@@ -295,12 +303,21 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
         }
     }
 
-    private fun flushWheel(now: Long) {
+    private fun flushWheel() {
         if (pendingWheelDx == 0 && pendingWheelDy == 0) return
-        viewImpl.wheelEvent(pendingWheelX, pendingWheelY, pendingWheelRawX, pendingWheelRawY, pendingWheelDx, pendingWheelDy)
+        val dx = pendingWheelDx
+        val dy = pendingWheelDy
         pendingWheelDx = 0
         pendingWheelDy = 0
-        lastWheelFlushNs = now
+        wheelInFlight = true
+        viewImpl.wheelEvent(pendingWheelX, pendingWheelY, pendingWheelRawX, pendingWheelRawY, dx, dy)
+    }
+
+    /** Called from WebViewImplementation.invalidateLayout() after every engine paint. */
+    fun onEnginePainted() {
+        wheelInFlight = false
+        if (pendingWheelDx != 0 || pendingWheelDy != 0)
+            android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
     }
 
     override fun computeScroll() {
@@ -312,11 +329,13 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
             lastFlingX = x
             lastFlingY = y
             if (dx != 0 || dy != 0) {
-                viewImpl.wheelEvent(
-                    width / 2f, height / 2f,
-                    width / 2f, height / 2f,
-                    dx, dy
-                )
+                pendingWheelDx += dx
+                pendingWheelDy += dy
+                pendingWheelX = width / 2f
+                pendingWheelY = height / 2f
+                pendingWheelRawX = pendingWheelX
+                pendingWheelRawY = pendingWheelY
+                if (!wheelInFlight) flushWheel()
             }
             postInvalidateOnAnimation()
         }
