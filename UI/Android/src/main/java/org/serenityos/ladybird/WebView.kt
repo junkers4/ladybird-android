@@ -48,6 +48,18 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
     private var pendingWheelRawX = 0f
     private var pendingWheelRawY = 0f
     private var wheelInFlight = false
+    // Immediate-scroll feedback (Chrome-style async scrolling emulation). The
+    // engine repaints one or two frames behind the finger, which feels laggy
+    // even at 90fps. To decouple touch from engine latency we translate the
+    // already-painted bitmap by the not-yet-acknowledged scroll amount, so the
+    // page visually follows the finger instantly. The bookkeeping is drift-free:
+    // every wheel delta we *send* is subtracted from the visual offset up front,
+    // and added back when the engine acknowledges that paint (onEnginePainted),
+    // so the offset always converges to zero once scrolling stops.
+    private var visualOffsetX = 0f
+    private var visualOffsetY = 0f
+    private var inFlightWheelDx = 0
+    private var inFlightWheelDy = 0
     private val frameCallback: android.view.Choreographer.FrameCallback =
         android.view.Choreographer.FrameCallback {
             if (!wheelInFlight && (pendingWheelDx != 0 || pendingWheelDy != 0))
@@ -238,6 +250,15 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                 lastX = event.x
                 lastY = event.y
                 isScrollingGesture = false
+                // Start each gesture from a clean visual state. Drop any scroll
+                // still in flight from a prior fling so its late ACK can't
+                // re-introduce a stray offset.
+                visualOffsetX = 0f
+                visualOffsetY = 0f
+                inFlightWheelDx = 0
+                inFlightWheelDy = 0
+                pendingWheelDx = 0
+                pendingWheelDy = 0
                 parent?.requestDisallowInterceptTouchEvent(true)
                 viewImpl.mouseEvent(MotionEvent.ACTION_MOVE, event.x, event.y, event.rawX, event.rawY)
                 return true
@@ -254,18 +275,8 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                     val stepDy = event.y - lastY
                     val wheelDx = (-stepDx).roundToInt()
                     val wheelDy = (-stepDy).roundToInt()
-                    if (wheelDx != 0 || wheelDy != 0) {
-                        pendingWheelDx += wheelDx
-                        pendingWheelDy += wheelDy
-                        pendingWheelX = event.x
-                        pendingWheelY = event.y
-                        pendingWheelRawX = event.rawX
-                        pendingWheelRawY = event.rawY
-                        if (!wheelInFlight)
-                            flushWheel()
-                        else
-                            android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
-                    }
+                    if (wheelDx != 0 || wheelDy != 0)
+                        enqueueWheel(wheelDx, wheelDy, event.x, event.y, event.rawX, event.rawY)
                 }
 
                 lastX = event.x
@@ -304,12 +315,37 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
         }
     }
 
+    /**
+     * Queue a wheel delta for the engine while immediately reflecting it on
+     * screen. The visual offset leads the engine: we subtract the sent delta now
+     * (content jumps with the finger) and add it back on acknowledgement.
+     */
+    private fun enqueueWheel(wheelDx: Int, wheelDy: Int, x: Float, y: Float, rawX: Float, rawY: Float) {
+        pendingWheelDx += wheelDx
+        pendingWheelDy += wheelDy
+        pendingWheelX = x
+        pendingWheelY = y
+        pendingWheelRawX = rawX
+        pendingWheelRawY = rawY
+        visualOffsetX -= wheelDx
+        visualOffsetY -= wheelDy
+        // Show the finger-following translation right now, without waiting for
+        // the engine to repaint.
+        invalidate()
+        if (!wheelInFlight)
+            flushWheel()
+        else
+            android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
+    }
+
     private fun flushWheel() {
         if (pendingWheelDx == 0 && pendingWheelDy == 0) return
         val dx = pendingWheelDx
         val dy = pendingWheelDy
         pendingWheelDx = 0
         pendingWheelDy = 0
+        inFlightWheelDx = dx
+        inFlightWheelDy = dy
         wheelInFlight = true
         viewImpl.wheelEvent(pendingWheelX, pendingWheelY, pendingWheelRawX, pendingWheelRawY, dx, dy)
     }
@@ -317,6 +353,12 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
     /** Called from WebViewImplementation.invalidateLayout() after every engine paint. */
     fun onEnginePainted() {
         wheelInFlight = false
+        // The engine has now painted the scroll we sent; fold that delta back
+        // out of the visual lead so the freshly-painted bitmap lines up exactly.
+        visualOffsetX += inFlightWheelDx
+        visualOffsetY += inFlightWheelDy
+        inFlightWheelDx = 0
+        inFlightWheelDy = 0
         if (pendingWheelDx != 0 || pendingWheelDy != 0)
             android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
     }
@@ -329,15 +371,8 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
             val dy = y - lastFlingY
             lastFlingX = x
             lastFlingY = y
-            if (dx != 0 || dy != 0) {
-                pendingWheelDx += dx
-                pendingWheelDy += dy
-                pendingWheelX = width / 2f
-                pendingWheelY = height / 2f
-                pendingWheelRawX = pendingWheelX
-                pendingWheelRawY = pendingWheelY
-                if (!wheelInFlight) flushWheel()
-            }
+            if (dx != 0 || dy != 0)
+                enqueueWheel(dx, dy, width / 2f, height / 2f, width / 2f, height / 2f)
             postInvalidateOnAnimation()
         }
     }
@@ -365,7 +400,9 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
         super.onDraw(canvas)
 
         viewImpl.drawIntoBitmap(contentBitmap);
-        canvas.drawBitmap(contentBitmap, 0f, 0f, null)
+        // Translate by the not-yet-acknowledged scroll so the page tracks the
+        // finger even while the engine is still catching up.
+        canvas.drawBitmap(contentBitmap, visualOffsetX, visualOffsetY, null)
     }
 
     companion object {
