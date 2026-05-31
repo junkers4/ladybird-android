@@ -214,7 +214,12 @@ class WebViewImplementation(private val view: WebView) {
 
     fun invalidateLayout() {
         view.onEnginePainted()
-        view.requestLayout()
+        // NOTE: deliberately NOT calling requestLayout() here. The web content
+        // repainting does not change this View's size, so a layout pass is
+        // unnecessary — and requestLayout() forces a full measure/layout
+        // traversal of the Android view hierarchy on the UI thread on *every*
+        // engine paint, which during scrolling pushed UI-thread frame time to
+        // ~150ms (100% janky frames). invalidate() alone schedules a redraw.
         view.invalidate()
         view.onContentReady()
     }

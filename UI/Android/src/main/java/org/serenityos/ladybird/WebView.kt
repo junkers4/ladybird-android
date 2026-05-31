@@ -48,12 +48,13 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
     private var pendingWheelRawX = 0f
     private var pendingWheelRawY = 0f
     private var wheelInFlight = false
-    private val frameCallback = android.view.Choreographer.FrameCallback {
-        if (!wheelInFlight && (pendingWheelDx != 0 || pendingWheelDy != 0))
-            flushWheel()
-        if (pendingWheelDx != 0 || pendingWheelDy != 0 || isScrollingGesture)
-            android.view.Choreographer.getInstance().postFrameCallback(this.frameCallback)
-    }
+    private val frameCallback: android.view.Choreographer.FrameCallback =
+        android.view.Choreographer.FrameCallback {
+            if (!wheelInFlight && (pendingWheelDx != 0 || pendingWheelDy != 0))
+                flushWheel()
+            if (pendingWheelDx != 0 || pendingWheelDy != 0 || isScrollingGesture)
+                android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
+        }
     var onLoadStart: (url: String, isRedirect: Boolean) -> Unit = { _, _ -> }
     var onLoadFinish: (url: String) -> Unit = { }
     var onTitleChange: (title: String) -> Unit = { }
