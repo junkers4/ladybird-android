@@ -39,18 +39,18 @@ enum class UserAgentPreset(val displayName: String, val uaString: String?, val p
     Default("Default (Ladybird)", null, null),
     ChromeAndroid(
         "Chrome (Android)",
-        "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36",
-        "Linux armv81"
+        "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36",
+        "Linux armv8l"
     ),
     ChromeDesktop(
         "Chrome (Desktop)",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
         "Linux x86_64"
     ),
     FirefoxAndroid(
         "Firefox (Android)",
-        "Mozilla/5.0 (Android 13; Mobile; rv:129.0) Gecko/129.0 Firefox/129.0",
-        "Linux armv81"
+        "Mozilla/5.0 (Android 14; Mobile; rv:134.0) Gecko/134.0 Firefox/134.0",
+        "Linux armv8l"
     ),
     SafariIOS(
         "Safari (iOS)",
@@ -59,7 +59,7 @@ enum class UserAgentPreset(val displayName: String, val uaString: String?, val p
     );
 
     companion object {
-        fun from(name: String?): UserAgentPreset = entries.firstOrNull { it.name == name } ?: ChromeDesktop
+        fun from(name: String?): UserAgentPreset = entries.firstOrNull { it.name == name } ?: ChromeAndroid
     }
 }
 
@@ -94,14 +94,15 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_JS, value).apply()
 
     /**
-      * Default to desktop Chrome for now. Google mobile search still tends to
-      * route Ladybird-like clients through anti-bot flows, while the desktop UA
-      * produces simpler layouts and has been a better compatibility baseline on
-      * Android during bring-up. Users can still switch to mobile Chrome in
-      * Settings once site compatibility improves.
+      * Default to mobile Chrome. The engine's own default Android UA is already
+      * a clean "Chrome/146 ... Mobile Safari" string with a matching
+      * "Linux armv8l" platform, so advertising the same here keeps the UA,
+      * navigator.platform and layout viewport mutually consistent — a
+      * desktop UA on a phone is itself a strong anti-bot signal that pushed
+      * Google straight into reCAPTCHA. Users can still pick desktop in Settings.
      */
     var userAgent: UserAgentPreset
-          get() = UserAgentPreset.from(prefs.getString(KEY_UA, UserAgentPreset.ChromeDesktop.name))
+          get() = UserAgentPreset.from(prefs.getString(KEY_UA, UserAgentPreset.ChromeAndroid.name))
         set(value) = prefs.edit().putString(KEY_UA, value.name).apply()
 
     var navigatorCompatibility: NavigatorCompatibility
