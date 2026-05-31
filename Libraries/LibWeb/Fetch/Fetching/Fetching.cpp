@@ -11,6 +11,7 @@
 
 #include <AK/Base64.h>
 #include <AK/Debug.h>
+#include <AK/Platform.h>
 #include <AK/ScopeGuard.h>
 #include <LibHTTP/Cache/MemoryCache.h>
 #include <LibHTTP/Cache/Utilities.h>
@@ -1712,6 +1713,37 @@ GC::Ref<PendingResponse> http_network_or_cache_fetch(JS::Realm& realm, Infrastru
         //     (`User-Agent`, default `User-Agent` value) to httpRequest’s header list.
         if (!http_request->header_list()->contains("User-Agent"sv))
             http_request->header_list()->append({ "User-Agent"sv, Infrastructure::default_user_agent_value() });
+
+#if defined(AK_OS_ANDROID)
+        // Chrome always advertises its low-entropy User-Agent Client Hints. A Chrome
+        // User-Agent paired with *no* Sec-CH-UA headers is an easy "this isn't really
+        // Chrome" signal that pushes anti-bot systems (notably Google reCAPTCHA)
+        // straight into challenge flows. Derive the hints from the (possibly spoofed)
+        // User-Agent so the UA string, platform and brand list stay mutually
+        // consistent. Android-only so desktop/headless/test behaviour is unchanged.
+        if (auto user_agent = Infrastructure::default_user_agent_value(); user_agent.contains("Chrome/"sv)) {
+            auto major_version = "146"sv;
+            if (auto idx = user_agent.find("Chrome/"sv); idx.has_value()) {
+                auto rest = user_agent.substring_view(*idx + "Chrome/"sv.length());
+                if (auto dot = rest.find('.'); dot.has_value())
+                    major_version = rest.substring_view(0, *dot);
+            }
+            auto brands = ByteString::formatted(
+                "\"Chromium\";v=\"{}\", \"Not?A_Brand\";v=\"24\", \"Google Chrome\";v=\"{}\"",
+                major_version, major_version);
+            auto is_mobile = user_agent.contains("Mobile"sv) ? "?1"sv : "?0"sv;
+            auto platform = user_agent.contains("Android"sv) ? "\"Android\""sv
+                : user_agent.contains("Windows"sv)          ? "\"Windows\""sv
+                : user_agent.contains("Mac OS X"sv)          ? "\"macOS\""sv
+                                                             : "\"Linux\""sv;
+            if (!http_request->header_list()->contains("Sec-CH-UA"sv))
+                http_request->header_list()->append({ "Sec-CH-UA"sv, brands });
+            if (!http_request->header_list()->contains("Sec-CH-UA-Mobile"sv))
+                http_request->header_list()->append({ "Sec-CH-UA-Mobile"sv, is_mobile });
+            if (!http_request->header_list()->contains("Sec-CH-UA-Platform"sv))
+                http_request->header_list()->append({ "Sec-CH-UA-Platform"sv, platform });
+        }
+#endif
 
         // 16. If httpRequest’s cache mode is "default" and httpRequest’s header list contains `If-Modified-Since`,
         //     `If-None-Match`, `If-Unmodified-Since`, `If-Match`, or `If-Range`, then set httpRequest’s cache mode to

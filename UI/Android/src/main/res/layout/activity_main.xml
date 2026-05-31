@@ -82,7 +82,7 @@
                                 android:singleLine="true"
                                 android:textColor="@color/ladybird_on_surface"
                                 android:textColorHint="@color/ladybird_on_surface_muted"
-                                android:textSize="14sp" />
+                                android:textSize="16sp" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 

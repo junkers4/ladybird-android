@@ -213,6 +213,7 @@ class WebViewImplementation(private val view: WebView) {
     }
 
     fun invalidateLayout() {
+        view.onEnginePainted()
         view.requestLayout()
         view.invalidate()
         view.onContentReady()
