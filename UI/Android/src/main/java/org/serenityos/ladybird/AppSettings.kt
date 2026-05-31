@@ -77,6 +77,25 @@ class AppSettings(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("ladybird_prefs", Context.MODE_PRIVATE)
 
+    init {
+        // One-time migration. Earlier builds shipped a desktop UA preset as the
+        // effective identity, which got persisted on devices and then kept
+        // overriding the (now correct) mobile default — making Google serve
+        // reCAPTCHA because a desktop Linux Chrome UA on a touch phone is an
+        // obvious anti-bot tell. Bump the schema version and force any stored
+        // desktop UA back to the mobile Chrome (Android) preset exactly once,
+        // without touching the user's other settings.
+        val storedVersion = prefs.getInt(KEY_SETTINGS_VERSION, 0)
+        if (storedVersion < CURRENT_SETTINGS_VERSION) {
+            val ua = prefs.getString(KEY_UA, null)
+            val editor = prefs.edit()
+            if (ua == UserAgentPreset.ChromeDesktop.name)
+                editor.putString(KEY_UA, UserAgentPreset.ChromeAndroid.name)
+            editor.putInt(KEY_SETTINGS_VERSION, CURRENT_SETTINGS_VERSION)
+            editor.apply()
+        }
+    }
+
     var homePage: String
         get() = prefs.getString(KEY_HOME, DEFAULT_HOME) ?: DEFAULT_HOME
         set(value) = prefs.edit().putString(KEY_HOME, value.ifBlank { DEFAULT_HOME }).apply()
@@ -126,5 +145,7 @@ class AppSettings(context: Context) {
         private const val KEY_UA = "user_agent_preset"
         private const val KEY_NAV_COMPAT = "navigator_compat"
         private const val KEY_PINCH = "pinch_zoom_enabled"
+        private const val KEY_SETTINGS_VERSION = "settings_version"
+        private const val CURRENT_SETTINGS_VERSION = 1
     }
 }
