@@ -91,6 +91,12 @@ class AppSettings(context: Context) {
             val editor = prefs.edit()
             if (ua == UserAgentPreset.ChromeDesktop.name)
                 editor.putString(KEY_UA, UserAgentPreset.ChromeAndroid.name)
+            // v2: the old default home was ladybird.org, which made the browser
+            // feel like Ladybird rather than a Chrome/Vanadium-style client. Move
+            // anyone still on that default onto the new local New Tab page.
+            val home = prefs.getString(KEY_HOME, null)
+            if (home == null || home == LEGACY_DEFAULT_HOME)
+                editor.putString(KEY_HOME, DEFAULT_HOME)
             editor.putInt(KEY_SETTINGS_VERSION, CURRENT_SETTINGS_VERSION)
             editor.apply()
         }
@@ -137,7 +143,10 @@ class AppSettings(context: Context) {
     }
 
     companion object {
-        const val DEFAULT_HOME = "https://ladybird.org/"
+        // Sentinel handled by the activity: renders a local Chrome-style New Tab
+        // page instead of fetching a remote site.
+        const val DEFAULT_HOME = "about:newtab"
+        const val LEGACY_DEFAULT_HOME = "https://ladybird.org/"
         private const val KEY_HOME = "home_page"
         private const val KEY_SEARCH = "search_engine"
         private const val KEY_COLOR = "color_scheme"
@@ -146,6 +155,6 @@ class AppSettings(context: Context) {
         private const val KEY_NAV_COMPAT = "navigator_compat"
         private const val KEY_PINCH = "pinch_zoom_enabled"
         private const val KEY_SETTINGS_VERSION = "settings_version"
-        private const val CURRENT_SETTINGS_VERSION = 1
+        private const val CURRENT_SETTINGS_VERSION = 2
     }
 }

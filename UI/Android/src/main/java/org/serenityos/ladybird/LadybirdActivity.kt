@@ -52,6 +52,19 @@ class LadybirdActivity : AppCompatActivity() {
     private var startupOverlayShownAt = 0L
     private var currentUrl: String = ""
     private var currentTitle: String = ""
+    // Lazily-built local New Tab page; depends on settings so created on first use.
+    private val newTabUrl: String by lazy { NewTabPage.dataUrl(settings.searchEngine.template, isDarkUi()) }
+
+    private fun isDarkUi(): Boolean = when (settings.colorScheme) {
+        ColorSchemePreference.Light -> false
+        ColorSchemePreference.Dark -> true
+        ColorSchemePreference.Auto ->
+            (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+    }
+
+    private fun isNewTabUrl(url: String): Boolean =
+        url == newTabUrl || url == AppSettings.DEFAULT_HOME || url.startsWith("data:text/html")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,13 +96,14 @@ class LadybirdActivity : AppCompatActivity() {
             setLoading(true)
             currentUrl = url
             if (!urlEditText.hasFocus())
-                urlEditText.setText(url, TextView.BufferType.EDITABLE)
+                urlEditText.setText(if (isNewTabUrl(url)) "" else url, TextView.BufferType.EDITABLE)
         }
         view.onLoadFinish = { url: String ->
             Log.i("LadybirdLoad", "onLoadFinish: $url")
             currentUrl = url
             setLoading(false)
-            history.record(url, currentTitle.ifBlank { url })
+            if (!isNewTabUrl(url))
+                history.record(url, currentTitle.ifBlank { url })
             // Nudge a single repaint once load settles; do NOT spam
             // setViewportGeometry on every load-finish (Google/SPAs trigger many
             // of these per click) — the engine already has the correct geometry
@@ -100,7 +114,7 @@ class LadybirdActivity : AppCompatActivity() {
             Log.i("LadybirdLoad", "onUrlChange: $url")
             currentUrl = url
             if (!urlEditText.hasFocus())
-                urlEditText.setText(url, TextView.BufferType.EDITABLE)
+                urlEditText.setText(if (isNewTabUrl(url)) "" else url, TextView.BufferType.EDITABLE)
         }
         view.onTitleChange = { title: String ->
             currentTitle = title
@@ -212,12 +226,21 @@ class LadybirdActivity : AppCompatActivity() {
     }
 
     private fun navigateToInput(input: String) {
-        val url = normalizeUrlOrSearch(input)
-        urlEditText.setText(url, TextView.BufferType.EDITABLE)
+        val url = resolveTarget(input)
+        // The new-tab surface shows an empty omnibox, just like Chrome/Vanadium.
+        urlEditText.setText(if (isNewTabUrl(url)) "" else url, TextView.BufferType.EDITABLE)
         urlEditText.clearFocus()
         hideKeyboard()
         setLoading(true)
         view.loadURL(url)
+    }
+
+    /** Resolve user/omnibox input or a stored home value to a loadable URL. */
+    private fun resolveTarget(input: String): String {
+        val trimmed = input.trim()
+        if (trimmed.isEmpty()) return resolveTarget(settings.homePage)
+        if (trimmed == AppSettings.DEFAULT_HOME) return newTabUrl
+        return normalizeUrlOrSearch(trimmed)
     }
 
     private fun normalizeUrlOrSearch(input: String): String {
