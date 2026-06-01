@@ -29,6 +29,8 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
     private var lastX = 0f
     private var lastY = 0f
     private var isScrollingGesture = false
+    private var lockVerticalScrollAxis = false
+    private var lockHorizontalScrollAxis = false
     private var isScalingGesture = false
     private var pinchZoomEnabled = true
     private val flinger = OverScroller(context)
@@ -46,6 +48,7 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
     private var pendingWheelRawX = 0f
     private var pendingWheelRawY = 0f
     private var wheelFrameScheduled = false
+    private var pinchGestureScale = 1f
     private var pinchPreviewScale = 1f
     private var pinchFocusX = 0f
     private var pinchFocusY = 0f
@@ -71,6 +74,7 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
             if (!pinchZoomEnabled) return false
             isScalingGesture = true
             flinger.forceFinished(true)
+            pinchGestureScale = 1f
             pinchPreviewScale = 1f
             pinchCommitPending = false
             pinchFocusX = detector.focusX
@@ -84,13 +88,17 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
             // once when the fingers lift.
             pinchFocusX = detector.focusX
             pinchFocusY = detector.focusY
-            pinchPreviewScale = (pinchPreviewScale * detector.scaleFactor).coerceIn(0.55f, 1.85f)
+            pinchGestureScale = (pinchGestureScale * detector.scaleFactor).coerceIn(0.55f, 1.85f)
+            // Never preview zoom-out by shrinking the whole bitmap: that exposes
+            // grey side gutters. Zoom-out commits at gesture end; zoom-in can be
+            // previewed safely because it crops rather than revealing margins.
+            pinchPreviewScale = pinchGestureScale.coerceAtLeast(1f)
             invalidate()
             return true
         }
 
         override fun onScaleEnd(detector: ScaleGestureDetector) {
-            var scale = pinchPreviewScale
+            var scale = pinchGestureScale
             isScalingGesture = false
             val oldZoomLevel = viewImpl.zoomLevel()
             var steps = 0
@@ -100,11 +108,15 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                 scale /= 1.10f
                 steps++
             }
-            while (scale < 0.92f && steps < 5) {
+            while (scale < 0.92f && steps < 5 && viewImpl.zoomLevel() > 1.0) {
                 viewImpl.zoomOut()
                 syncViewport()
                 scale *= 1.10f
                 steps++
+            }
+            if (viewImpl.zoomLevel() < 1.0) {
+                viewImpl.zoomReset()
+                syncViewport()
             }
             if (steps > 0 && viewImpl.zoomLevel() != oldZoomLevel) {
                 // Keep the smooth bitmap preview visible until WebContent paints
@@ -112,6 +124,7 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                 // frame and looks like it is glitching.
                 pinchCommitPending = true
             } else {
+                pinchGestureScale = 1f
                 pinchPreviewScale = 1f
             }
             postInvalidateOnAnimation()
@@ -261,6 +274,8 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                 lastX = event.x
                 lastY = event.y
                 isScrollingGesture = false
+                lockVerticalScrollAxis = false
+                lockHorizontalScrollAxis = false
                 pendingWheelDx = 0
                 pendingWheelDy = 0
                 parent?.requestDisallowInterceptTouchEvent(true)
@@ -271,14 +286,22 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
             MotionEvent.ACTION_MOVE -> {
                 val totalDx = event.x - downX
                 val totalDy = event.y - downY
-                if (!isScrollingGesture && (abs(totalDx) > touchSlop || abs(totalDy) > touchSlop))
+                if (!isScrollingGesture && (abs(totalDx) > touchSlop || abs(totalDy) > touchSlop)) {
                     isScrollingGesture = true
+                    // Match mobile browser feel: once the gesture is clearly
+                    // vertical, ignore horizontal jitter from the finger (and
+                    // vice versa). This prevents pages from wobbling sideways
+                    // while the user is simply trying to scroll down.
+                    lockVerticalScrollAxis = abs(totalDy) > abs(totalDx) * 1.2f
+                    lockHorizontalScrollAxis = abs(totalDx) > abs(totalDy) * 1.2f
+                }
 
                 if (isScrollingGesture) {
                     val stepDx = event.x - lastX
                     val stepDy = event.y - lastY
-                    val wheelDx = (-stepDx).roundToInt()
-                    val wheelDy = (-stepDy).roundToInt()
+                    val allowHorizontalPan = viewImpl.zoomLevel() > 1.0
+                    val wheelDx = if (!allowHorizontalPan || lockVerticalScrollAxis) 0 else (-stepDx).roundToInt()
+                    val wheelDy = if (lockHorizontalScrollAxis) 0 else (-stepDy).roundToInt()
                     if (wheelDx != 0 || wheelDy != 0)
                         enqueueWheel(wheelDx, wheelDy, event.x, event.y, event.rawX, event.rawY)
                 }
@@ -304,12 +327,16 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                         onSwipeRefresh()
                 }
                 isScrollingGesture = false
+                lockVerticalScrollAxis = false
+                lockHorizontalScrollAxis = false
                 return true
             }
 
             MotionEvent.ACTION_CANCEL -> {
                 flushWheel()
                 isScrollingGesture = false
+                lockVerticalScrollAxis = false
+                lockHorizontalScrollAxis = false
                 return true
             }
 
@@ -351,6 +378,7 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
             scheduleWheelFrame()
         if (pinchCommitPending) {
             pinchCommitPending = false
+            pinchGestureScale = 1f
             pinchPreviewScale = 1f
             postInvalidateOnAnimation()
         }

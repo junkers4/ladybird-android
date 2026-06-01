@@ -150,6 +150,16 @@
                 android:layout_height="match_parent"
                 tools:context=".LadybirdActivity" />
 
+            <FrameLayout
+                android:id="@+id/newTabOverlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/ladybird_background"
+                android:clickable="false"
+                android:focusable="false"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/findInPageBar"
                 android:layout_width="match_parent"
