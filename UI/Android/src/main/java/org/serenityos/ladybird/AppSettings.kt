@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 
 enum class SearchEngine(val displayName: String, val template: String) {
-    Google("Google", "https://www.google.com/search?q=%s"),
+    Google("Google", "https://www.google.com/search?gbv=1&q=%s"),
     DuckDuckGo("DuckDuckGo", "https://duckduckgo.com/?q=%s"),
     Bing("Bing", "https://www.bing.com/search?q=%s"),
     Kagi("Kagi", "https://kagi.com/search?q=%s"),

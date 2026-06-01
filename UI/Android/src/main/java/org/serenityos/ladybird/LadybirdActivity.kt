@@ -94,6 +94,7 @@ class LadybirdActivity : AppCompatActivity() {
             currentUrl = url
             setLoading(false)
             updateNewTabOverlay(url)
+            injectGoogleSorryPageFixesIfNeeded(url)
             if (!isNewTabUrl(url))
                 history.record(url, currentTitle.ifBlank { url })
             // Nudge a single repaint once load settles; do NOT spam
@@ -106,6 +107,7 @@ class LadybirdActivity : AppCompatActivity() {
             Log.i("LadybirdLoad", "onUrlChange: $url")
             currentUrl = url
             updateNewTabOverlay(url)
+            injectGoogleSorryPageFixesIfNeeded(url)
             if (!urlEditText.hasFocus())
                 urlEditText.setText(if (isNewTabUrl(url)) "" else url, TextView.BufferType.EDITABLE)
         }
@@ -124,6 +126,7 @@ class LadybirdActivity : AppCompatActivity() {
             hasRenderedContent = true
             if (isLoading)
                 setLoading(false)
+            injectGoogleSorryPageFixesIfNeeded(currentUrl)
             hideStartupOverlayIfNeeded()
         }
         view.onWebContentCrash = {
@@ -274,6 +277,51 @@ class LadybirdActivity : AppCompatActivity() {
 
     private fun updateNewTabOverlay(url: String) {
         binding.newTabOverlay.visibility = if (isNewTabUrl(url)) View.VISIBLE else View.GONE
+    }
+
+    private fun injectGoogleSorryPageFixesIfNeeded(url: String) {
+        if (!url.startsWith("https://www.google.com/sorry/index")
+            && !url.startsWith("https://www.google.com/search")
+        )
+            return
+
+        view.runJavascript(
+            """
+            (() => {
+              const pageText = document.body ? document.body.innerText : '';
+              if (!location.href.includes('/sorry/')
+                && !pageText.includes('Our systems have detected unusual traffic')
+                && !document.querySelector('.g-recaptcha, [id*="recaptcha"], [class*="recaptcha"]')) {
+                return;
+              }
+              if (document.getElementById('ladybird-google-sorry-fixes')) return;
+              const style = document.createElement('style');
+              style.id = 'ladybird-google-sorry-fixes';
+              style.textContent = `
+                html, body {
+                  width: auto !important;
+                  max-width: 100vw !important;
+                  overflow-x: hidden !important;
+                }
+                body, body * {
+                  max-width: 100% !important;
+                  overflow-wrap: anywhere !important;
+                  word-wrap: break-word !important;
+                  word-break: break-all !important;
+                }
+                pre, code {
+                  white-space: pre-wrap !important;
+                  overflow-wrap: anywhere !important;
+                  word-break: break-all !important;
+                }
+                iframe, .g-recaptcha, [id*="recaptcha"], [class*="recaptcha"] {
+                  max-width: 100% !important;
+                }
+              `;
+              (document.head || document.documentElement).appendChild(style);
+            })();
+            """.trimIndent()
+        )
     }
 
     private fun startStartupOverlayAnimation() {
