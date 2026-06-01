@@ -155,6 +155,11 @@ class LadybirdActivity : AppCompatActivity() {
         view.onSwipeRefresh = {
             if (currentUrl.isNotBlank()) view.loadURL(currentUrl) else view.reload()
         }
+        view.setOnTouchListener { _, _ ->
+            if (urlEditText.hasFocus())
+                leaveOmniboxEditMode()
+            false
+        }
 
         urlEditText.setOnEditorActionListener { textView: TextView, actionId: Int, keyEvent: KeyEvent? ->
             val isImeSubmit = actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_SEARCH
@@ -229,8 +234,7 @@ class LadybirdActivity : AppCompatActivity() {
         val url = resolveTarget(input)
         // The new-tab surface shows an empty omnibox, just like Chrome/Vanadium.
         urlEditText.setText(if (isNewTabUrl(url)) "" else url, TextView.BufferType.EDITABLE)
-        urlEditText.clearFocus()
-        hideKeyboard()
+        leaveOmniboxEditMode()
         setLoading(true)
         view.loadURL(url)
     }
@@ -297,6 +301,18 @@ class LadybirdActivity : AppCompatActivity() {
     private fun hideKeyboard() {
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         imm.hideSoftInputFromWindow(urlEditText.windowToken, 0)
+    }
+
+    private fun leaveOmniboxEditMode() {
+        if (!urlEditText.hasFocus())
+            return
+        if (urlEditText.hasFocus())
+            urlEditText.clearFocus()
+        urlEditText.post {
+            if (urlEditText.text.isNotEmpty())
+                urlEditText.setSelection(0)
+        }
+        hideKeyboard()
     }
 
     private fun setupFindBar() {

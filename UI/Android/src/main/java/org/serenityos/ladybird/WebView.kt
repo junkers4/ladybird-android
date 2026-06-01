@@ -34,38 +34,26 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
     private val flinger = OverScroller(context)
     private var lastFlingX = 0
     private var lastFlingY = 0
-    // Wheel-event backpressure. Sending wheel IPC at 120Hz overwhelms WebContent:
-    // each event triggers full layout + viewport repaint. The fix is *engine-paced*:
-    // only emit a wheel event when the engine has acknowledged the previous one
-    // (signalled via onEnginePainted, which fires on every invalidateLayout). In
-    // the meantime, deltas accumulate and the next emit carries the whole batch.
-    // This adapts automatically to engine speed: fast pages get near-60Hz, slow
-    // pages get coarser but never queue up dead frames.
+    // Coalesce wheel input to Android frame boundaries. The previous
+    // engine-ack-paced path avoided IPC backlogs, but it also made touch feel
+    // one engine repaint behind; the later visual-offset workaround could expose
+    // blank/shifted bitmap edges. Now that paint/blit are fast, one wheel batch
+    // per Choreographer frame is both responsive and stable.
     private var pendingWheelDx = 0
     private var pendingWheelDy = 0
     private var pendingWheelX = 0f
     private var pendingWheelY = 0f
     private var pendingWheelRawX = 0f
     private var pendingWheelRawY = 0f
-    private var wheelInFlight = false
-    // Immediate-scroll feedback (Chrome-style async scrolling emulation). The
-    // engine repaints one or two frames behind the finger, which feels laggy
-    // even at 90fps. To decouple touch from engine latency we translate the
-    // already-painted bitmap by the not-yet-acknowledged scroll amount, so the
-    // page visually follows the finger instantly. The bookkeeping is drift-free:
-    // every wheel delta we *send* is subtracted from the visual offset up front,
-    // and added back when the engine acknowledges that paint (onEnginePainted),
-    // so the offset always converges to zero once scrolling stops.
-    private var visualOffsetX = 0f
-    private var visualOffsetY = 0f
-    private var inFlightWheelDx = 0
-    private var inFlightWheelDy = 0
+    private var wheelFrameScheduled = false
+    private var pinchPreviewScale = 1f
+    private var pinchFocusX = 0f
+    private var pinchFocusY = 0f
+    private var pinchCommitPending = false
     private val frameCallback: android.view.Choreographer.FrameCallback =
         android.view.Choreographer.FrameCallback {
-            if (!wheelInFlight && (pendingWheelDx != 0 || pendingWheelDy != 0))
-                flushWheel()
-            if (pendingWheelDx != 0 || pendingWheelDy != 0 || isScrollingGesture)
-                android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
+            wheelFrameScheduled = false
+            flushWheel()
         }
     var onLoadStart: (url: String, isRedirect: Boolean) -> Unit = { _, _ -> }
     var onLoadFinish: (url: String) -> Unit = { }
@@ -79,31 +67,54 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
     var onSwipeRefresh: () -> Unit = { }
 
     private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        private var accumulated = 0.0
-
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
             if (!pinchZoomEnabled) return false
-            accumulated = 0.0
             isScalingGesture = true
             flinger.forceFinished(true)
+            pinchPreviewScale = 1f
+            pinchCommitPending = false
+            pinchFocusX = detector.focusX
+            pinchFocusY = detector.focusY
             return true
         }
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            // Accumulate scale factor and apply discrete zoom in/out steps so we
-            // stay aligned with the engine's preferred zoom ladder.
-            accumulated += (detector.scaleFactor - 1.0)
-            while (accumulated > 0.10) {
-                viewImpl.zoomIn(); accumulated -= 0.10
-            }
-            while (accumulated < -0.10) {
-                viewImpl.zoomOut(); accumulated += 0.10
-            }
+            // Keep pinch visually smooth without flooding WebContent with zoom
+            // re-layouts for every MotionEvent. The real discrete zoom is applied
+            // once when the fingers lift.
+            pinchFocusX = detector.focusX
+            pinchFocusY = detector.focusY
+            pinchPreviewScale = (pinchPreviewScale * detector.scaleFactor).coerceIn(0.55f, 1.85f)
+            invalidate()
             return true
         }
 
         override fun onScaleEnd(detector: ScaleGestureDetector) {
+            var scale = pinchPreviewScale
             isScalingGesture = false
+            val oldZoomLevel = viewImpl.zoomLevel()
+            var steps = 0
+            while (scale > 1.08f && steps < 5) {
+                viewImpl.zoomIn()
+                syncViewport()
+                scale /= 1.10f
+                steps++
+            }
+            while (scale < 0.92f && steps < 5) {
+                viewImpl.zoomOut()
+                syncViewport()
+                scale *= 1.10f
+                steps++
+            }
+            if (steps > 0 && viewImpl.zoomLevel() != oldZoomLevel) {
+                // Keep the smooth bitmap preview visible until WebContent paints
+                // the committed zoom level; otherwise the page snaps back for a
+                // frame and looks like it is glitching.
+                pinchCommitPending = true
+            } else {
+                pinchPreviewScale = 1f
+            }
+            postInvalidateOnAnimation()
         }
     }).apply {
         isQuickScaleEnabled = false
@@ -250,13 +261,6 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
                 lastX = event.x
                 lastY = event.y
                 isScrollingGesture = false
-                // Start each gesture from a clean visual state. Drop any scroll
-                // still in flight from a prior fling so its late ACK can't
-                // re-introduce a stray offset.
-                visualOffsetX = 0f
-                visualOffsetY = 0f
-                inFlightWheelDx = 0
-                inFlightWheelDy = 0
                 pendingWheelDx = 0
                 pendingWheelDy = 0
                 parent?.requestDisallowInterceptTouchEvent(true)
@@ -315,11 +319,6 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
         }
     }
 
-    /**
-     * Queue a wheel delta for the engine while immediately reflecting it on
-     * screen. The visual offset leads the engine: we subtract the sent delta now
-     * (content jumps with the finger) and add it back on acknowledgement.
-     */
     private fun enqueueWheel(wheelDx: Int, wheelDy: Int, x: Float, y: Float, rawX: Float, rawY: Float) {
         pendingWheelDx += wheelDx
         pendingWheelDy += wheelDy
@@ -327,15 +326,14 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
         pendingWheelY = y
         pendingWheelRawX = rawX
         pendingWheelRawY = rawY
-        visualOffsetX -= wheelDx
-        visualOffsetY -= wheelDy
-        // Show the finger-following translation right now, without waiting for
-        // the engine to repaint.
-        invalidate()
-        if (!wheelInFlight)
-            flushWheel()
-        else
-            android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
+        scheduleWheelFrame()
+    }
+
+    private fun scheduleWheelFrame() {
+        if (wheelFrameScheduled)
+            return
+        wheelFrameScheduled = true
+        android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
     }
 
     private fun flushWheel() {
@@ -344,23 +342,18 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
         val dy = pendingWheelDy
         pendingWheelDx = 0
         pendingWheelDy = 0
-        inFlightWheelDx = dx
-        inFlightWheelDy = dy
-        wheelInFlight = true
         viewImpl.wheelEvent(pendingWheelX, pendingWheelY, pendingWheelRawX, pendingWheelRawY, dx, dy)
     }
 
     /** Called from WebViewImplementation.invalidateLayout() after every engine paint. */
     fun onEnginePainted() {
-        wheelInFlight = false
-        // The engine has now painted the scroll we sent; fold that delta back
-        // out of the visual lead so the freshly-painted bitmap lines up exactly.
-        visualOffsetX += inFlightWheelDx
-        visualOffsetY += inFlightWheelDy
-        inFlightWheelDx = 0
-        inFlightWheelDy = 0
         if (pendingWheelDx != 0 || pendingWheelDy != 0)
-            android.view.Choreographer.getInstance().postFrameCallback(frameCallback)
+            scheduleWheelFrame()
+        if (pinchCommitPending) {
+            pinchCommitPending = false
+            pinchPreviewScale = 1f
+            postInvalidateOnAnimation()
+        }
     }
 
     override fun computeScroll() {
@@ -400,9 +393,14 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
         super.onDraw(canvas)
 
         viewImpl.drawIntoBitmap(contentBitmap);
-        // Translate by the not-yet-acknowledged scroll so the page tracks the
-        // finger even while the engine is still catching up.
-        canvas.drawBitmap(contentBitmap, visualOffsetX, visualOffsetY, null)
+        if (pinchPreviewScale != 1f) {
+            val checkpoint = canvas.save()
+            canvas.scale(pinchPreviewScale, pinchPreviewScale, pinchFocusX, pinchFocusY)
+            canvas.drawBitmap(contentBitmap, 0f, 0f, null)
+            canvas.restoreToCount(checkpoint)
+        } else {
+            canvas.drawBitmap(contentBitmap, 0f, 0f, null)
+        }
     }
 
     companion object {
