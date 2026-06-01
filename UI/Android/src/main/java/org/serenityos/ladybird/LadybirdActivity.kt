@@ -171,9 +171,15 @@ class LadybirdActivity : AppCompatActivity() {
         binding.tabCountButton.setOnClickListener {
             Toast.makeText(this, R.string.browser_tabs_single, Toast.LENGTH_SHORT).show()
         }
-        // Tapping the New Tab search pill behaves like Chrome/Vanadium: it lifts
-        // focus into the real omnibox and opens the keyboard.
-        binding.ntpSearchPill.setOnClickListener { enterOmniboxEditMode() }
+        // Tapping the NTP pill hides the overlay so the omnibox at the top is
+        // clearly visible, then focuses it.  leaveOmniboxEditMode() restores the
+        // overlay if the user cancels without navigating.
+        val ntpFocusHandler = View.OnClickListener {
+            binding.newTabOverlay.visibility = View.GONE
+            enterOmniboxEditMode()
+        }
+        binding.ntpSearchPill.setOnClickListener(ntpFocusHandler)
+        binding.newTabOverlay.setOnClickListener(ntpFocusHandler)
 
         setupFindBar()
 
@@ -231,12 +237,8 @@ class LadybirdActivity : AppCompatActivity() {
 
     private fun navigateToInput(input: String) {
         val url = resolveTarget(input)
-        // The new-tab surface shows an empty omnibox, just like Chrome/Vanadium.
         urlEditText.setText(if (isNewTabUrl(url)) "" else url, TextView.BufferType.EDITABLE)
-        if (isNewTabUrl(url))
-            enterOmniboxEditMode()
-        else
-            leaveOmniboxEditMode()
+        leaveOmniboxEditMode()
         setLoading(true)
         updateNewTabOverlay(url)
         view.loadURL(url)
@@ -374,6 +376,8 @@ class LadybirdActivity : AppCompatActivity() {
                 urlEditText.setSelection(0)
         }
         hideKeyboard()
+        // Restore overlay if still on the New Tab page (user cancelled without navigating).
+        updateNewTabOverlay(currentUrl)
     }
 
     private fun setupFindBar() {
