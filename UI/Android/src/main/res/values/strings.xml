@@ -17,6 +17,7 @@
     <string name="tabs_close_tab">Close tab (returns home)</string>
     <string name="browser_loading">Loading…</string>
     <string name="browser_search_url_hint">Search or enter address</string>
+    <string name="ntp_search_hint">Search or type URL</string>
     <string name="browser_webcontent_crashed">WebContent crashed. Reload the page to try again.</string>
 
     <string name="menu_new_tab">New page</string>

@@ -171,6 +171,9 @@ class LadybirdActivity : AppCompatActivity() {
         binding.tabCountButton.setOnClickListener {
             Toast.makeText(this, R.string.browser_tabs_single, Toast.LENGTH_SHORT).show()
         }
+        // Tapping the New Tab search pill behaves like Chrome/Vanadium: it lifts
+        // focus into the real omnibox and opens the keyboard.
+        binding.ntpSearchPill.setOnClickListener { enterOmniboxEditMode() }
 
         setupFindBar()
 

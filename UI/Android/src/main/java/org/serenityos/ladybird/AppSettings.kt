@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 
 enum class SearchEngine(val displayName: String, val template: String) {
-    Google("Google", "https://www.google.com/search?gbv=1&q=%s"),
+    Google("Google", "https://www.google.com/search?q=%s"),
     DuckDuckGo("DuckDuckGo", "https://duckduckgo.com/?q=%s"),
     Bing("Bing", "https://www.bing.com/search?q=%s"),
     Kagi("Kagi", "https://kagi.com/search?q=%s"),
@@ -14,7 +14,14 @@ enum class SearchEngine(val displayName: String, val template: String) {
     fun urlFor(query: String): String = template.format(android.net.Uri.encode(query))
 
     companion object {
-        fun from(name: String?): SearchEngine = entries.firstOrNull { it.name == name } ?: Google
+        fun from(name: String?): SearchEngine = entries.firstOrNull { it.name == name } ?: DEFAULT
+
+        // Google's anti-bot pipeline (the sorry/index interstitial that wants a
+        // `solveSimpleChallenge` helper Ladybird does not implement) blocks
+        // search results on most mobile/CGNAT networks no matter the UA. Default
+        // to DuckDuckGo — like privacy-focused Chromium builds — so the omnibox
+        // actually returns results. Google stays available in Settings.
+        val DEFAULT = DuckDuckGo
     }
 }
 
@@ -97,6 +104,13 @@ class AppSettings(context: Context) {
             val home = prefs.getString(KEY_HOME, null)
             if (home == null || home == LEGACY_DEFAULT_HOME)
                 editor.putString(KEY_HOME, DEFAULT_HOME)
+            // v3: Google as the default search engine reliably lands on the
+            // reCAPTCHA sorry page for our networks. Move anyone still on the old
+            // Google default (or with no stored choice) onto DuckDuckGo, which
+            // returns results. A deliberate non-Google choice is left untouched.
+            val search = prefs.getString(KEY_SEARCH, null)
+            if (search == null || search == SearchEngine.Google.name)
+                editor.putString(KEY_SEARCH, SearchEngine.DEFAULT.name)
             editor.putInt(KEY_SETTINGS_VERSION, CURRENT_SETTINGS_VERSION)
             editor.apply()
         }
@@ -107,7 +121,7 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit().putString(KEY_HOME, value.ifBlank { DEFAULT_HOME }).apply()
 
     var searchEngine: SearchEngine
-        get() = SearchEngine.from(prefs.getString(KEY_SEARCH, SearchEngine.Google.name))
+        get() = SearchEngine.from(prefs.getString(KEY_SEARCH, SearchEngine.DEFAULT.name))
         set(value) = prefs.edit().putString(KEY_SEARCH, value.name).apply()
 
     var colorScheme: ColorSchemePreference
@@ -155,6 +169,6 @@ class AppSettings(context: Context) {
         private const val KEY_NAV_COMPAT = "navigator_compat"
         private const val KEY_PINCH = "pinch_zoom_enabled"
         private const val KEY_SETTINGS_VERSION = "settings_version"
-        private const val CURRENT_SETTINGS_VERSION = 2
+        private const val CURRENT_SETTINGS_VERSION = 3
     }
 }
