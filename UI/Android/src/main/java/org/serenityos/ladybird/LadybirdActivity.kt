@@ -168,6 +168,10 @@ class LadybirdActivity : AppCompatActivity() {
             }
         }
         binding.menuButton.setOnClickListener { showBrowserMenu() }
+        binding.homeButton.setOnClickListener { navigateToInput(settings.homePage) }
+        // Single-tab engine for now: "+" opens a fresh page (the native NTP
+        // when the home page is the default about:newtab).
+        binding.newTabButton.setOnClickListener { navigateToInput(settings.homePage) }
         binding.tabCountButton.setOnClickListener {
             Toast.makeText(this, R.string.browser_tabs_single, Toast.LENGTH_SHORT).show()
         }

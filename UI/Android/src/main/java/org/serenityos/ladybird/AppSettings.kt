@@ -6,6 +6,9 @@ import android.content.SharedPreferences
 enum class SearchEngine(val displayName: String, val template: String) {
     Google("Google", "https://www.google.com/search?q=%s"),
     DuckDuckGo("DuckDuckGo", "https://duckduckgo.com/?q=%s"),
+    // The html.duckduckgo.com endpoint works with scripting disabled and never
+    // serves bot challenges — a reliable fallback while the JS engine matures.
+    DuckDuckGoHtml("DuckDuckGo (no JS)", "https://html.duckduckgo.com/html/?q=%s"),
     Bing("Bing", "https://www.bing.com/search?q=%s"),
     Kagi("Kagi", "https://kagi.com/search?q=%s"),
     Brave("Brave", "https://search.brave.com/search?q=%s"),
