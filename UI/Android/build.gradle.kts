@@ -54,7 +54,10 @@ android {
                     "-DANDROID_STL=c++_shared",
                     "-DLADYBIRD_CACHE_DIR=$cacheDir",
                     "-DVCPKG_ROOT=$sourceDir/Build/vcpkg",
-                    "-DVCPKG_TARGET_ANDROID=ON"
+                    "-DVCPKG_TARGET_ANDROID=ON",
+                    // Use vcpkg's pkgconf so the build doesn't depend on a
+                    // system-wide pkg-config installation.
+                    "-DPKG_CONFIG_EXECUTABLE=$sourceDir/Build/host-tools-build/vcpkg_installed/x64-linux/tools/pkgconf/pkgconf"
                 )
             }
         }
