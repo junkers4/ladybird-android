@@ -527,13 +527,13 @@ class LadybirdActivity : AppCompatActivity() {
             popup.dismiss(); navigateToInput(settings.homePage)
         }
         popupView.findViewById<View>(R.id.rowHistory).setOnClickListener {
-            popup.dismiss(); showHistorySheet()
+            popup.dismiss(); openUrlList(UrlListActivity.MODE_HISTORY)
         }
         popupView.findViewById<View>(R.id.rowDeleteData).setOnClickListener {
             popup.dismiss(); confirmDeleteBrowsingData()
         }
         popupView.findViewById<View>(R.id.rowBookmarks).setOnClickListener {
-            popup.dismiss(); showBookmarksSheet()
+            popup.dismiss(); openUrlList(UrlListActivity.MODE_BOOKMARKS)
         }
         popupView.findViewById<View>(R.id.rowFindInPage).setOnClickListener {
             popup.dismiss(); showFindBar()
@@ -633,6 +633,10 @@ class LadybirdActivity : AppCompatActivity() {
     private fun setColorScheme(scheme: ColorSchemePreference) {
         settings.colorScheme = scheme
         view.setPreferredColorScheme(scheme.nativeValue)
+    }
+
+    private fun openUrlList(mode: String) {
+        startActivity(Intent(this, UrlListActivity::class.java).putExtra(UrlListActivity.EXTRA_MODE, mode))
     }
 
     private fun showBookmarksSheet() {

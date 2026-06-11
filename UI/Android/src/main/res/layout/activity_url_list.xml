@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-screen history/bookmarks list in the style of Chrome's history page. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ladybird_surface"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/listToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@color/ladybird_surface"
+        app:navigationIcon="@drawable/ic_arrow_back"
+        app:navigationIconTint="@color/ladybird_on_surface"
+        app:titleTextColor="@color/ladybird_on_surface" />
+
+    <LinearLayout
+        android:id="@+id/clearAllRow"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_delete"
+            android:tint="@color/ladybird_accent" />
+
+        <TextView
+            android:id="@+id/clearAllLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="18dp"
+            android:text="@string/menu_delete_browsing_data"
+            android:textColor="@color/ladybird_accent"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <View
+        android:id="@+id/clearAllDivider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/ladybird_divider" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/urlList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false" />
+
+        <TextView
+            android:id="@+id/emptyText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:textColor="@color/ladybird_on_surface_muted"
+            android:textSize="15sp"
+            android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>
