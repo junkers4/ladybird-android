@@ -162,6 +162,16 @@ Optional<FlyString> get_the_effective_directive_for_request(GC::Ref<Fetch::Infra
     //      1. Return null.
     case Fetch::Infrastructure::Request::Destination::Report:
         return OptionalNone {};
+    // "document"
+    //      1. Return null.
+    // NOTE: Top-level navigation requests are not subject to the initiating document's
+    //       fetch directives (navigations are governed by 'frame-src'/'form-action'/
+    //       sandboxing instead; 'navigate-to' was removed from the spec). Falling
+    //       through to the connect-src default made every cross-site navigation away
+    //       from a CSP-protected page (e.g. tapping a duckduckgo.com search result)
+    //       fail with a connect-src violation and land on about:error.
+    case Fetch::Infrastructure::Request::Destination::Document:
+        return OptionalNone {};
     // 3. Return connect-src.
     // Spec Note: The algorithm returns connect-src as a default fallback. This is intended for new fetch destinations
     //            that are added and which don’t explicitly fall into one of the other categories.
