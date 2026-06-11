@@ -8,13 +8,13 @@
 
 #include <LibWeb/DOM/Element.h>
 #include <LibWeb/HTML/GlobalEventHandlers.h>
-#include <LibWeb/HTML/HTMLOrSVGElement.h>
+#include <LibWeb/HTML/HTMLOrSVGOrMathMLElement.h>
 
 namespace Web::MathML {
 
 class MathMLElement : public DOM::Element
     , public HTML::GlobalEventHandlers
-    , public HTML::HTMLOrSVGElement<MathMLElement> {
+    , public HTML::HTMLOrSVGOrMathMLElement<MathMLElement> {
     WEB_PLATFORM_OBJECT(MathMLElement, DOM::Element);
     GC_DECLARE_ALLOCATOR(MathMLElement);
 
@@ -30,7 +30,7 @@ protected:
     virtual void inserted() override;
     virtual GC::Ptr<DOM::EventTarget> global_event_handlers_to_event_target(FlyString const&) override { return *this; }
     virtual bool is_presentational_hint(FlyString const&) const override;
-    virtual void apply_presentational_hints(GC::Ref<CSS::CascadedProperties>) const override;
+    virtual void apply_presentational_hints(Vector<CSS::StyleProperty>&) const override;
 
 private:
     virtual void visit_edges(Visitor&) override;

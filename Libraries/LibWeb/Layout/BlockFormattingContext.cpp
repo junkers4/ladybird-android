@@ -77,6 +77,14 @@ static bool margins_collapse_through(Box const& box, LayoutState& state)
     if (FormattingContext::creates_block_formatting_context(box))
         return false;
 
+    // https://drafts.csswg.org/css-flexbox-1/#flex-containers
+    // [..] the flex container’s margins do not collapse with the margins of its contents.
+    // https://drafts.csswg.org/css-grid-2/#grid-containers
+    // [..] the grid container’s margins do not collapse with the margins of its contents.
+    auto display = box.display();
+    if (display.is_flex_inside() || display.is_grid_inside())
+        return false;
+
     // NB: This should take care of the height and min-height constraints.
     //     ( also see https://github.com/w3c/csswg-drafts/pull/13699#issuecomment-4103045370 for spec ambiguity )
     if (state.get(box).border_box_height() != 0)
@@ -101,7 +109,7 @@ void BlockFormattingContext::run(AvailableSpace const& available_space)
 {
     FORMATTING_CONTEXT_TRACE();
     // https://drafts.csswg.org/css-multicol-2/#the-multi-column-model
-    auto root_state = m_state.get(root());
+    auto const& root_state = m_state.get(root());
     auto column_count = determine_used_value_for_column_count(root_state.content_width());
     if (column_count.has_value()) {
         auto column_width = determine_used_value_for_column_width(root_state.content_width(), column_count.value());
@@ -406,8 +414,6 @@ void BlockFormattingContext::compute_width_for_floating_box(Box const& box, Avai
     auto compute_width = [&](CSS::LengthOrAuto width) {
         // If 'width' is computed as 'auto', the used value is the "shrink-to-fit" width.
         if (width.is_auto()) {
-            auto result = calculate_shrink_to_fit_widths(box);
-
             if (available_space.width.is_definite()) {
                 // Find the available width: in this case, this is the width of the containing
                 // block minus the used values of 'margin-left', 'border-left-width', 'padding-left',
@@ -416,13 +422,19 @@ void BlockFormattingContext::compute_width_for_floating_box(Box const& box, Avai
                     - margin_left - computed_values.border_left().width - box_state.padding_left
                     - box_state.padding_right - computed_values.border_right().width - margin_right;
                 // Then the shrink-to-fit width is: min(max(preferred minimum width, available width), preferred width).
-                width = CSS::Length::make_px(min(max(result.preferred_minimum_width, available_width), result.preferred_width));
+                auto preferred_width = calculate_max_content_width(box);
+                if (preferred_width <= available_width) {
+                    width = CSS::Length::make_px(preferred_width);
+                } else {
+                    auto preferred_minimum_width = calculate_min_content_width(box);
+                    width = CSS::Length::make_px(min(max(preferred_minimum_width, available_width), preferred_width));
+                }
             } else if (available_space.width.is_indefinite() || available_space.width.is_max_content()) {
                 // Fold the formula for shrink-to-fit width for indefinite and max-content available width.
-                width = CSS::Length::make_px(result.preferred_width);
+                width = CSS::Length::make_px(calculate_max_content_width(box));
             } else {
                 // Fold the formula for shrink-to-fit width for min-content available width.
-                width = CSS::Length::make_px(min(result.preferred_minimum_width, result.preferred_width));
+                width = CSS::Length::make_px(calculate_min_content_width(box));
             }
         }
 
@@ -506,7 +518,8 @@ void BlockFormattingContext::resolve_used_height_if_not_treated_as_auto(Box cons
     }
 
     box_state.set_content_height(height);
-    box_state.set_has_definite_height(true);
+    if (computed_height_establishes_definite_containing_block_height(computed_values.height()))
+        box_state.set_has_definite_height(true);
 }
 
 void BlockFormattingContext::resolve_used_height_if_treated_as_auto(Box const& box, AvailableSpace const& available_space, FormattingContext const* box_formatting_context)
@@ -769,20 +782,20 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
         if (m_layout_mode == LayoutMode::Normal) {
             auto& box_state = m_state.get_mutable(box);
             StaticPositionRect static_position;
+            auto static_position_x = CSSPixels(0);
             auto static_position_y = m_y_offset_of_current_block_container.value();
-            // FIXME: This is a heuristic approximation. Ideally, originally-inline abspos
-            //        elements would have their static position determined by the IFC that
-            //        laid out the surrounding inline content, but our architecture currently
-            //        routes all abspos elements through the BFC as block-level children.
-            //        When the previous sibling is the anonymous wrapper that contains the
-            //        inline content this element would have been part of, use that wrapper's
-            //        y-offset as a rough approximation of the correct static position.
             if (box.display_before_box_type_transformation().is_inline_outside()) {
-                if (auto const* sibling = as_if<NodeWithStyle>(box.previous_sibling());
-                    sibling && sibling->is_anonymous() && sibling->children_are_inline())
-                    static_position_y = m_state.get(*sibling).offset.y();
+                auto sibling_ref = box.previous_sibling();
+                auto const* sibling = as_if<Box>(sibling_ref.ptr());
+                if (sibling && sibling->is_anonymous() && sibling->children_are_inline()) {
+                    auto const& sibling_state = m_state.get(*sibling);
+                    if (auto const& inline_end_static_position_rect = sibling_state.inline_end_static_position_rect(); inline_end_static_position_rect.has_value()) {
+                        static_position_x = sibling_state.offset.x() + inline_end_static_position_rect->rect.x();
+                        static_position_y = sibling_state.offset.y() + inline_end_static_position_rect->rect.y();
+                    }
+                }
             }
-            static_position.rect = { { 0, static_position_y }, { 0, 0 } };
+            static_position.rect = { { static_position_x, static_position_y }, { 0, 0 } };
             box_state.set_static_position_rect(static_position);
         }
         return;
@@ -883,7 +896,7 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
     // Before we insert the children of a list item we need to know the location of the marker.
     // If we do not do this then left-floating elements inside the list item will push the marker to the right,
     // in some cases even causing it to overlap with the non-floating content of the list.
-    CSSPixels left_space_before_children_formatted;
+    SpaceUsedByFloats inline_space_used_before_children_formatted;
     if (is_list_item_box_without_css_content && li_box->marker()) {
         // We need to ensure that our height and width are final before we calculate our left offset.
         // Otherwise, the y at which we calculate the intrusion by floats might be incorrect.
@@ -893,9 +906,7 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
         auto const& marker_state = m_state.get(*li_box->marker());
 
         auto offset_y = max(CSSPixels(0), (li_box->marker()->computed_values().line_height() - marker_state.content_height()) / 2);
-        auto space_used_before_children_formatted = intrusion_by_floats_into_box(list_item_state, offset_y);
-
-        left_space_before_children_formatted = space_used_before_children_formatted.left;
+        inline_space_used_before_children_formatted = intrusion_by_floats_into_box(list_item_state, offset_y);
     }
 
     if (independent_formatting_context) {
@@ -965,7 +976,7 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
     // Now that our children are formatted we place the ListItemBox with the left space we remembered.
     if (is_list_item_box_without_css_content)
         // The marker pseudo-element will be created from a ListItemMarkerBox
-        layout_list_item_marker(*li_box, left_space_before_children_formatted);
+        layout_list_item_marker(*li_box, inline_space_used_before_children_formatted);
     // Otherwise, it will be a dealt with as a generic pseudo-element with the content of the ::marker pseudo-element.
 
     if (independent_formatting_context || !margins_collapse_through(box, m_state)) {
@@ -1501,8 +1512,8 @@ void BlockFormattingContext::ensure_sizes_correct_for_left_offset_calculation(Li
 
     // If an image is used, the marker's dimensions are the same as the image.
     if (auto const* list_style_image = marker.list_style_image()) {
-        marker_state.set_content_width(list_style_image->natural_width().value_or(0));
-        marker_state.set_content_height(list_style_image->natural_height().value_or(0));
+        marker_state.set_content_width(list_style_image->natural_width(marker.document()).value_or(0));
+        marker_state.set_content_height(list_style_image->natural_height(marker.document()).value_or(0));
         return;
     }
 
@@ -1521,7 +1532,7 @@ void BlockFormattingContext::ensure_sizes_correct_for_left_offset_calculation(Li
     }
 }
 
-void BlockFormattingContext::layout_list_item_marker(ListItemBox const& list_item_box, CSSPixels const& left_space_before_list_item_elements_formatted)
+void BlockFormattingContext::layout_list_item_marker(ListItemBox const& list_item_box, SpaceUsedByFloats const& inline_space_used_before_list_item_elements_formatted)
 {
     if (!list_item_box.marker())
         return;
@@ -1540,14 +1551,22 @@ void BlockFormattingContext::layout_list_item_marker(ListItemBox const& list_ite
     auto marker_height = marker_state.content_height();
     auto marker_width = marker_state.content_width();
 
+    auto list_item_direction = list_item_box.computed_values().direction();
+    auto marker_offset_x = list_item_direction == CSS::Direction::Ltr
+        ? inline_space_used_before_list_item_elements_formatted.left - marker_distance - marker_width
+        : list_item_state.content_width() - (inline_space_used_before_list_item_elements_formatted.right - marker_distance);
+    auto marker_offset_y = max(CSSPixels(0), (marker.computed_values().line_height() - marker_height) / 2);
+
     if (marker.list_style_position() == CSS::ListStylePosition::Inside) {
-        list_item_state.set_content_x(list_item_state.offset.x() + marker_width + marker_distance);
-        list_item_state.set_content_width(list_item_state.content_width() - marker_width);
+        // FIXME: Just adjusting the content width and position for an inside marker is wrong, as it will still position
+        //        the marker outside of the box, instead of treating it more like an inline child on the first line.
+        if (list_item_direction == CSS::Direction::Ltr) {
+            list_item_state.set_content_x(list_item_state.offset.x() + marker_width + marker_distance);
+        }
+        list_item_state.set_content_width(list_item_state.content_width() - marker_width - marker_distance);
     }
 
-    auto offset_x = round(left_space_before_list_item_elements_formatted - marker_distance - marker_width);
-    auto offset_y = round(max(CSSPixels(0), (marker.computed_values().line_height() - marker_height) / 2));
-    marker_state.set_content_offset({ offset_x, offset_y });
+    marker_state.set_content_offset({ round(marker_offset_x), round(marker_offset_y) });
 
     if (marker.computed_values().line_height() > list_item_state.content_height())
         list_item_state.set_content_height(marker.computed_values().line_height());
@@ -1570,7 +1589,7 @@ BlockFormattingContext::SpaceUsedAndContainingMarginForFloats BlockFormattingCon
                 + floating_box.used_values.content_width()
                 + floating_box.used_values.margin_box_right();
             space_and_containing_margin.left_total_containing_margin = offset_from_containing_block_chain_margins_between_here_and_root;
-            space_and_containing_margin.matching_left_float_box = floating_box.box;
+            space_and_containing_margin.matching_left_float_box = &floating_box.box;
             break;
         }
     }
@@ -1587,7 +1606,7 @@ BlockFormattingContext::SpaceUsedAndContainingMarginForFloats BlockFormattingCon
             space_and_containing_margin.right_used_space = floating_box.offset_from_edge
                 + floating_box.used_values.margin_box_left();
             space_and_containing_margin.right_total_containing_margin = offset_from_containing_block_chain_margins_between_here_and_root;
-            space_and_containing_margin.matching_right_float_box = floating_box.box;
+            space_and_containing_margin.matching_right_float_box = &floating_box.box;
             break;
         }
     }
@@ -1642,7 +1661,7 @@ CSSPixels BlockFormattingContext::greatest_child_width(Box const& box) const
             CSSPixels extra_width_from_left_floats = 0;
             for (auto& left_float : m_left_floats.all_boxes) {
                 // NOTE: Floats directly affect the automatic size of their containing block, but only indirectly anything above in the tree.
-                if (left_float->box->containing_block() != &box)
+                if (left_float->box.containing_block() != &box)
                     continue;
                 if (line_top < left_float->bottom_margin_edge && line_bottom > left_float->top_margin_edge) {
                     extra_width_from_left_floats = max(extra_width_from_left_floats, left_float->offset_from_edge + left_float->used_values.content_width() + left_float->used_values.margin_box_right());
@@ -1651,7 +1670,7 @@ CSSPixels BlockFormattingContext::greatest_child_width(Box const& box) const
             CSSPixels extra_width_from_right_floats = 0;
             for (auto& right_float : m_right_floats.all_boxes) {
                 // NOTE: Floats directly affect the automatic size of their containing block, but only indirectly anything above in the tree.
-                if (right_float->box->containing_block() != &box)
+                if (right_float->box.containing_block() != &box)
                     continue;
                 if (line_top < right_float->bottom_margin_edge && line_bottom > right_float->top_margin_edge) {
                     extra_width_from_right_floats = max(extra_width_from_right_floats, right_float->offset_from_edge + right_float->used_values.margin_box_left());

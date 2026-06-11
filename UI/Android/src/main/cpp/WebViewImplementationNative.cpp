@@ -10,7 +10,7 @@
 #include <AK/Utf16String.h>
 #include <LibCore/System.h>
 #include <LibGfx/Bitmap.h>
-#include <LibGfx/ImmutableBitmap.h>
+#include <LibGfx/DecodedImageFrame.h>
 #include <LibGfx/Painter.h>
 #include <LibWeb/Crypto/Crypto.h>
 #include <LibWebView/ConsoleOutput.h>

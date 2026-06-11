@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
-#include <LibGfx/ImmutableBitmap.h>
+#include <LibGfx/DecodedImageFrame.h>
 #include <LibWeb/Bindings/HTMLObjectElement.h>
-#include <LibWeb/CSS/CascadedProperties.h>
 #include <LibWeb/CSS/ComputedProperties.h>
+#include <LibWeb/CSS/Invalidation/EmbeddedContentInvalidator.h>
 #include <LibWeb/CSS/StyleComputer.h>
 #include <LibWeb/CSS/StyleValues/DisplayStyleValue.h>
 #include <LibWeb/CSS/StyleValues/KeywordStyleValue.h>
@@ -80,9 +80,18 @@ void HTMLObjectElement::initialize(JS::Realm& realm)
 void HTMLObjectElement::visit_edges(Cell::Visitor& visitor)
 {
     Base::visit_edges(visitor);
-    image_provider_visit_edges(visitor);
     visitor.visit(m_resource_request);
     visitor.visit(m_document_observer);
+}
+
+void HTMLObjectElement::adopted_from(DOM::Document& old_document)
+{
+    Base::adopted_from(old_document);
+
+    for (auto& delayer : m_document_load_event_delayer_for_object_representation_task)
+        delayer = DOM::DocumentLoadEventDelayer { document() };
+    for (auto& delayer : m_document_load_event_delayer_for_resource_load)
+        delayer = DOM::DocumentLoadEventDelayer { document() };
 }
 
 void HTMLObjectElement::form_associated_element_attribute_changed(FlyString const& name, Optional<String> const&, Optional<String> const&, Optional<FlyString> const&)
@@ -121,50 +130,55 @@ bool HTMLObjectElement::is_presentational_hint(FlyString const& name) const
         HTML::AttributeNames::width);
 }
 
-void HTMLObjectElement::apply_presentational_hints(GC::Ref<CSS::CascadedProperties> cascaded_properties) const
+void HTMLObjectElement::apply_presentational_hints(Vector<CSS::StyleProperty>& properties) const
 {
-    Base::apply_presentational_hints(cascaded_properties);
+    Base::apply_presentational_hints(properties);
     for_each_attribute([&](auto& name, auto& value) {
         if (name == HTML::AttributeNames::align) {
-            if (value.equals_ignoring_ascii_case("center"sv))
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::TextAlign, CSS::KeywordStyleValue::create(CSS::Keyword::Center));
-            else if (value.equals_ignoring_ascii_case("middle"sv))
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::TextAlign, CSS::KeywordStyleValue::create(CSS::Keyword::Middle));
+            // https://html.spec.whatwg.org/multipage/rendering.html#attributes-for-embedded-content-and-images
+            // When an embed, iframe, img, or object element, or an input element whose type attribute is in the Image Button state,
+            // has an align attribute whose value is an ASCII case-insensitive match for the string "center" or the string "middle",
+            // the user agent is expected to act as if the element's 'vertical-align' property was set to a value that aligns the
+            // vertical middle of the element with the parent element's baseline.
+            // FIXME: This should use legacy baseline-middle alignment instead of CSS vertical-align: middle,
+            //        as Firefox and Chrome do with engine-specific legacy values.
+            if (value.equals_ignoring_ascii_case("center"sv) || value.equals_ignoring_ascii_case("middle"sv))
+                properties.append({ .property_id = CSS::PropertyID::VerticalAlign, .value = CSS::KeywordStyleValue::create(CSS::Keyword::Middle) });
         } else if (name == HTML::AttributeNames::border) {
             if (auto parsed_value = parse_non_negative_integer(value); parsed_value.has_value()) {
                 auto width_style_value = CSS::LengthStyleValue::create(CSS::Length::make_px(*parsed_value));
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::BorderTopWidth, width_style_value);
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::BorderRightWidth, width_style_value);
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::BorderBottomWidth, width_style_value);
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::BorderLeftWidth, width_style_value);
+                properties.append({ .property_id = CSS::PropertyID::BorderTopWidth, .value = width_style_value });
+                properties.append({ .property_id = CSS::PropertyID::BorderRightWidth, .value = width_style_value });
+                properties.append({ .property_id = CSS::PropertyID::BorderBottomWidth, .value = width_style_value });
+                properties.append({ .property_id = CSS::PropertyID::BorderLeftWidth, .value = width_style_value });
 
                 auto border_style_value = CSS::KeywordStyleValue::create(CSS::Keyword::Solid);
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::BorderTopStyle, border_style_value);
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::BorderRightStyle, border_style_value);
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::BorderBottomStyle, border_style_value);
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::BorderLeftStyle, border_style_value);
+                properties.append({ .property_id = CSS::PropertyID::BorderTopStyle, .value = border_style_value });
+                properties.append({ .property_id = CSS::PropertyID::BorderRightStyle, .value = border_style_value });
+                properties.append({ .property_id = CSS::PropertyID::BorderBottomStyle, .value = border_style_value });
+                properties.append({ .property_id = CSS::PropertyID::BorderLeftStyle, .value = border_style_value });
             }
         }
         // https://html.spec.whatwg.org/multipage/rendering.html#attributes-for-embedded-content-and-images:maps-to-the-dimension-property-3
         else if (name == HTML::AttributeNames::height) {
             if (auto parsed_value = parse_dimension_value(value)) {
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::Height, *parsed_value);
+                properties.append({ .property_id = CSS::PropertyID::Height, .value = *parsed_value });
             }
         }
         // https://html.spec.whatwg.org/multipage/rendering.html#attributes-for-embedded-content-and-images:maps-to-the-dimension-property
         else if (name == HTML::AttributeNames::hspace) {
             if (auto parsed_value = parse_dimension_value(value)) {
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::MarginLeft, *parsed_value);
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::MarginRight, *parsed_value);
+                properties.append({ .property_id = CSS::PropertyID::MarginLeft, .value = *parsed_value });
+                properties.append({ .property_id = CSS::PropertyID::MarginRight, .value = *parsed_value });
             }
         } else if (name == HTML::AttributeNames::vspace) {
             if (auto parsed_value = parse_dimension_value(value)) {
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::MarginTop, *parsed_value);
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::MarginBottom, *parsed_value);
+                properties.append({ .property_id = CSS::PropertyID::MarginTop, .value = *parsed_value });
+                properties.append({ .property_id = CSS::PropertyID::MarginBottom, .value = *parsed_value });
             }
         } else if (name == HTML::AttributeNames::width) {
             if (auto parsed_value = parse_dimension_value(value)) {
-                cascaded_properties->set_property_from_presentational_hint(CSS::PropertyID::Width, *parsed_value);
+                properties.append({ .property_id = CSS::PropertyID::Width, .value = *parsed_value });
             }
         }
     });
@@ -189,16 +203,16 @@ void HTMLObjectElement::set_data(String const& data)
     set_attribute_value(HTML::AttributeNames::data, data);
 }
 
-GC::Ptr<Layout::Node> HTMLObjectElement::create_layout_node(GC::Ref<CSS::ComputedProperties> style)
+RefPtr<Layout::Node> HTMLObjectElement::create_layout_node(CSS::ComputedProperties const& style)
 {
     switch (m_representation) {
     case Representation::Children:
-        return NavigableContainer::create_layout_node(move(style));
+        return NavigableContainer::create_layout_node(style);
     case Representation::ContentNavigable:
-        return heap().allocate<Layout::NavigableContainerViewport>(document(), *this, move(style));
+        return make_ref_counted<Layout::NavigableContainerViewport>(document(), *this, style);
     case Representation::Image:
         if (image_data())
-            return heap().allocate<Layout::ImageBox>(document(), *this, move(style), *this);
+            return make_ref_counted<Layout::ImageBox>(document(), *this, style, *this);
         break;
     default:
         break;
@@ -560,7 +574,7 @@ void HTMLObjectElement::update_layout_and_child_objects(Representation represent
     }
 
     m_representation = representation;
-    invalidate_style(DOM::StyleInvalidationReason::HTMLObjectElementUpdateLayoutAndChildObjects);
+    CSS::Invalidation::invalidate_style_after_object_representation_change(*this);
 
     if (auto parent_element = this->parent_element())
         parent_element->set_needs_layout_tree_update(true, DOM::SetNeedsLayoutTreeUpdateReason::HTMLObjectElementUpdateLayoutAndChildObjects);
@@ -606,11 +620,11 @@ Optional<CSSPixelFraction> HTMLObjectElement::intrinsic_aspect_ratio() const
     return {};
 }
 
-RefPtr<Gfx::ImmutableBitmap> HTMLObjectElement::current_image_bitmap_sized(Gfx::IntSize size) const
+Optional<Gfx::DecodedImageFrame> HTMLObjectElement::current_image_frame_sized(Gfx::IntSize size) const
 {
     if (auto image_data = this->image_data())
-        return image_data->bitmap(0, size);
-    return nullptr;
+        return image_data->frame(0, size);
+    return {};
 }
 
 void HTMLObjectElement::set_visible_in_viewport(bool)

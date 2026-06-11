@@ -142,7 +142,10 @@ pub fn resolve_label(op: &Operand, handler: &Handler) -> String {
                 name.clone()
             }
         }
-        _ => panic!("expected label operand"),
+        other => panic!(
+            "expected label operand in handler '{}', got {other:?}",
+            handler.name
+        ),
     }
 }
 
@@ -336,6 +339,7 @@ mod tests {
             opcode_list: Vec::new(),
             object_format: ObjectFormat::MachO,
             has_jscvt: false,
+            enable_assertions: false,
         }
     }
 

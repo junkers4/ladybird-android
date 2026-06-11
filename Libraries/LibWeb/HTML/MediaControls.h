@@ -10,6 +10,7 @@
 #include <AK/Optional.h>
 #include <AK/Vector.h>
 #include <LibCore/Timer.h>
+#include <LibGC/Cell.h>
 #include <LibGC/Weak.h>
 #include <LibWeb/Forward.h>
 #include <LibWeb/HTML/MediaControlsDOM.h>
@@ -22,6 +23,8 @@ class MediaControls {
 public:
     explicit MediaControls(HTMLMediaElement&);
     ~MediaControls();
+
+    void visit_edges(GC::Cell::Visitor&);
 
 private:
     void create_shadow_tree();
@@ -45,6 +48,7 @@ private:
     void remove_event_listeners();
     void set_up_event_listeners();
 
+    void play();
     void toggle_playback();
     void set_current_time(double);
     void set_volume(double);
@@ -53,7 +57,10 @@ private:
 
     void update_play_pause_icon();
     void update_timeline();
+    void set_timeline_progress(double);
     void update_timestamp();
+    void set_timestamp(double time, double duration);
+    void request_timeline_update();
     void update_volume_and_mute_indicator();
     void update_fullscreen_icon();
     void update_placeholder_visibility();
@@ -73,7 +80,7 @@ private:
         GC::Weak<DOM::IDLEventListener> listener;
     };
     Vector<RegisteredEventListener> m_registered_event_listeners;
-    GC::Weak<WebIDL::CallbackType> m_request_animation_frame_callback;
+    GC::Ptr<WebIDL::CallbackType> m_request_animation_frame_callback;
     u32 m_request_animation_frame_id { 0 };
 
     enum class Scrubbing : u8 {
@@ -96,7 +103,16 @@ private:
     };
     MuteIconState m_mute_icon_state { MuteIconState::Empty };
 
-    double m_last_timeline_percentage { 0.0 };
+    double m_last_timeline_progress { 0.0 };
+    i64 m_last_timestamp_time { -1 };
+    i64 m_last_timestamp_duration { -1 };
+
+    struct BufferedRange {
+        GC::Weak<DOM::Element> element;
+        double left { 0 };
+        double width { 0 };
+    };
+    Vector<BufferedRange> m_buffered_ranges;
 };
 
 }

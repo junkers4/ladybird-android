@@ -11,6 +11,7 @@
 #include <LibJS/Runtime/Set.h>
 #include <LibWeb/Bindings/ExceptionOrUtils.h>
 #include <LibWeb/Bindings/FontFaceSet.h>
+#include <LibWeb/Bindings/FontFaceSetLoadEvent.h>
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/CSS/FontComputer.h>
 #include <LibWeb/CSS/FontFace.h>
@@ -62,7 +63,7 @@ void FontFaceSet::visit_edges(Cell::Visitor& visitor)
 }
 
 // https://drafts.csswg.org/css-font-loading/#dom-fontfaceset-add
-WebIDL::ExceptionOr<GC::Ref<FontFaceSet>> FontFaceSet::add(GC::Root<FontFace> face)
+WebIDL::ExceptionOr<GC::Ref<FontFaceSet>> FontFaceSet::add(GC::Ref<FontFace> face)
 {
     // 1. If font is already in the FontFaceSet’s set entries, skip to the last step of this algorithm immediately.
     if (m_set_entries->set_has(face))
@@ -106,7 +107,7 @@ void FontFaceSet::add_css_connected_font(GC::Ref<FontFace> face)
 }
 
 // https://drafts.csswg.org/css-font-loading/#dom-fontfaceset-delete
-bool FontFaceSet::delete_(GC::Root<FontFace> face)
+bool FontFaceSet::delete_(GC::Ref<FontFace> face)
 {
     // 1. If font is CSS-connected, return false and exit this algorithm immediately.
     if (face->is_css_connected()) {
@@ -203,7 +204,7 @@ WebIDL::CallbackType* FontFaceSet::onloadingerror()
 }
 
 // https://drafts.csswg.org/css-font-loading/#find-the-matching-font-faces
-static WebIDL::ExceptionOr<GC::Ref<JS::Set>> find_matching_font_faces(JS::Realm& realm, FontFaceSet& font_face_set, String const& font, String const&)
+static WebIDL::ExceptionOr<GC::Ref<JS::Set>> find_matching_font_faces(JS::Realm& realm, FontFaceSet& font_face_set, String const& font, String const& text)
 {
     // 1. Parse font using the CSS value syntax of the font property. If a syntax error occurs, return a syntax error.
     auto property = parse_css_value(CSS::Parser::ParsingParams(), font, PropertyID::Font);
@@ -250,8 +251,28 @@ static WebIDL::ExceptionOr<GC::Ref<JS::Set>> find_matching_font_faces(JS::Realm&
     }
 
     // FIXME: 7. If matched font faces is empty, set the found faces flag to false. Otherwise, set it to true.
-    // FIXME: 8. For each font face in matched font faces, if its defined unicode-range does not include the codepoint of at
-    //           least one character in text, remove it from the list.
+
+    // 8. For each font face in matched font faces, if its defined unicode-range does not include the codepoint of at
+    //    least one character in text, remove it from the list.
+    GC::RootVector<JS::Value> faces_to_remove;
+    for (auto entry : *matched_font_faces) {
+        auto& font_face = as<FontFace>(entry.key.as_object());
+        bool includes_at_least_one_text_code_point = false;
+        for (auto code_point : text.code_points()) {
+            for (auto const& range : font_face.unicode_ranges()) {
+                if (range.contains(code_point)) {
+                    includes_at_least_one_text_code_point = true;
+                    break;
+                }
+            }
+            if (includes_at_least_one_text_code_point)
+                break;
+        }
+        if (!includes_at_least_one_text_code_point)
+            faces_to_remove.append(entry.key);
+    }
+    for (auto& key : faces_to_remove)
+        matched_font_faces->set_remove(key);
 
     // 9. Return matched font faces and the found faces flag.
     return matched_font_faces;
@@ -281,7 +302,7 @@ JS::ThrowCompletionOr<GC::Ref<WebIDL::Promise>> FontFaceSet::load(String const& 
 
         // 4. Queue a task to run the following steps synchronously:
         HTML::queue_a_task(HTML::Task::Source::FontLoading, nullptr, nullptr, GC::create_function(realm.heap(), [&realm, promise, matched_font_faces] {
-            GC::RootVector<GC::Ref<WebIDL::Promise>> promises(realm.heap());
+            GC::RootVector<GC::Ref<WebIDL::Promise>> promises;
 
             // 1. For all of the font faces in the font face list, call their load() method.
             for (auto font_face_value : *matched_font_faces) {
@@ -355,7 +376,7 @@ void FontFaceSet::fire_a_font_load_event(FlyString name, Vector<GC::Ref<FontFace
     // event named e using the FontFaceSetLoadEvent interface that also meets these conditions:
     // 1. The fontfaces attribute is initialized to the result of filtering font faces to only contain FontFace
     //    objects contained in target.
-    FontFaceSetLoadEventInit load_event_init {};
+    Bindings::FontFaceSetLoadEventInit load_event_init;
     for (auto const& font_face : font_faces) {
         if (set_entries()->set_has(font_face))
             load_event_init.fontfaces.append(font_face);
@@ -378,6 +399,11 @@ void FontFaceSet::set_is_pending_on_the_environment(bool is_pending_on_the_envir
         // FIXME: We also need to mark empty FontFaceSets as loaded, so that the [[ReadyPromise]] gets resolved.
         //        Spec issue: https://github.com/w3c/csswg-drafts/issues/13538#issuecomment-3933951987
         if (m_set_entries->set_size() == 0 || (m_is_stuck_on_the_environment && m_loading_fonts.is_empty()))
+            switch_to_loaded();
+        // AD-HOC: Also switch when nothing has ever entered the LoadingFonts list — an empty set, or a set whose
+        //         entries all have deferred unicode-ranges that no rendered codepoint matched. Without this the
+        //         ready promise stays pending forever.
+        else if (m_loading_fonts.is_empty())
             switch_to_loaded();
 
         // 2. If the FontFaceSet is stuck on the environment, unmark it as such.

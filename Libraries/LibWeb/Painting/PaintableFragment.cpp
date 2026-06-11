@@ -10,16 +10,38 @@
 #include <LibWeb/HTML/FormAssociatedElement.h>
 #include <LibWeb/HTML/HTMLInputElement.h>
 #include <LibWeb/HTML/HTMLTextAreaElement.h>
+#include <LibWeb/Layout/TextNode.h>
 #include <LibWeb/Layout/Viewport.h>
 #include <LibWeb/Painting/PaintableBox.h>
 #include <LibWeb/Painting/TextPaintable.h>
 
 namespace Web::Painting {
 
-PaintableFragment::PaintableFragment(Layout::LineBoxFragment const& fragment)
+template<typename Callback>
+static void for_each_cluster_in_glyph_run(Gfx::GlyphRun const& glyph_run, size_t fragment_length_in_code_units, Callback&& callback)
+{
+    size_t cursor = 0;
+    for (auto const& glyph : glyph_run.glyphs()) {
+        if (glyph.glyph_width == 0)
+            continue;
+
+        auto cluster_start = cursor;
+        auto cluster_end = min(cursor + glyph.length_in_code_units, fragment_length_in_code_units);
+        cursor = cluster_end;
+
+        if (cluster_end <= cluster_start)
+            continue;
+
+        if (callback(cluster_start, cluster_end, glyph.glyph_width) == IterationDecision::Break)
+            break;
+    }
+}
+
+PaintableFragment::PaintableFragment(Layout::LineBoxFragment const& fragment, LineBoxData line_box_data)
     : m_layout_node(fragment.layout_node())
     , m_offset(fragment.offset())
     , m_size(fragment.size())
+    , m_line_box_data(line_box_data)
     , m_start_offset(fragment.start())
     , m_length_in_code_units(fragment.length_in_code_units())
     , m_glyph_run(fragment.glyph_run())
@@ -27,19 +49,32 @@ PaintableFragment::PaintableFragment(Layout::LineBoxFragment const& fragment)
     , m_writing_mode(fragment.writing_mode())
     , m_has_trailing_whitespace(fragment.has_trailing_whitespace())
 {
+    if (auto const* text_node = as_if<Layout::TextNode>(layout_node()))
+        m_dom_start_offset_in_node = text_node->dom_start_offset() + m_start_offset;
+    else
+        m_dom_start_offset_in_node = m_start_offset;
 }
 
 CSSPixelRect const PaintableFragment::absolute_rect() const
 {
     CSSPixelRect rect { offset(), size() };
-    if (auto const* containing_block = paintable().containing_block())
+    if (auto containing_block = paintable().containing_block())
+        rect.translate_by(containing_block->absolute_position());
+    return rect;
+}
+
+CSSPixelRect const PaintableFragment::absolute_line_box_rect() const
+{
+    auto rect = m_line_box_data.rect;
+    if (auto containing_block = paintable().containing_block())
         rect.translate_by(containing_block->absolute_position());
     return rect;
 }
 
 size_t PaintableFragment::index_in_node_for_point(CSSPixelPoint position) const
 {
-    if (!is<TextPaintable>(paintable()))
+    auto const* text_paintable = as_if<TextPaintable>(paintable());
+    if (!text_paintable)
         return 0;
 
     auto relative_inline_offset = [&] {
@@ -56,18 +91,42 @@ size_t PaintableFragment::index_in_node_for_point(CSSPixelPoint position) const
 
     GraphemeEdgeTracker tracker { relative_inline_offset };
 
-    for (auto const& glyph : m_glyph_run->glyphs()) {
-        if (tracker.update(glyph.length_in_code_units, glyph.glyph_width) == IterationDecision::Break)
-            break;
+    if (m_glyph_run) {
+        auto& segmenter = text_paintable->layout_node().grapheme_segmenter();
+
+        // A single glyph can cover several code units / graphemes. In the case of ligatures, we want clicks inside to
+        // snap to the closest grapheme boundary inside it, not jump to either end. To achieve this we walk
+        // per-grapheme rather than per-glyph, splitting each glyph's advance proportionally across the graphemes that
+        // lie inside its cluster.
+        for_each_cluster_in_glyph_run(*m_glyph_run, m_length_in_code_units, [&](size_t cluster_start, size_t cluster_end, float cluster_width) {
+            auto per_unit_advance = cluster_width / static_cast<float>(cluster_end - cluster_start);
+
+            auto grapheme_start = m_start_offset + cluster_start;
+            auto cluster_absolute_end = m_start_offset + cluster_end;
+            while (grapheme_start < cluster_absolute_end) {
+                auto grapheme_end = min(segmenter.next_boundary(grapheme_start).value_or(cluster_absolute_end), cluster_absolute_end);
+                if (grapheme_end <= grapheme_start)
+                    break;
+
+                auto grapheme_units = grapheme_end - grapheme_start;
+                auto grapheme_width = per_unit_advance * static_cast<float>(grapheme_units);
+                if (tracker.update(grapheme_units, grapheme_width) == IterationDecision::Break)
+                    return IterationDecision::Break;
+
+                grapheme_start = grapheme_end;
+            }
+
+            return IterationDecision::Continue;
+        });
     }
 
-    return m_start_offset + tracker.resolve();
+    return dom_start_offset_in_node() + tracker.resolve();
 }
 
 Optional<PaintableFragment::SelectionOffsets> PaintableFragment::compute_selection_offsets(Paintable::SelectionState selection_state, size_t start_offset_in_code_units, size_t end_offset_in_code_units) const
 {
-    auto const start_index = m_start_offset;
-    auto const end_index = m_start_offset + m_length_in_code_units;
+    auto const dom_start = dom_start_offset_in_node();
+    auto const dom_end = dom_start + m_length_in_code_units;
 
     switch (selection_state) {
     case Paintable::SelectionState::None:
@@ -75,28 +134,28 @@ Optional<PaintableFragment::SelectionOffsets> PaintableFragment::compute_selecti
     case Paintable::SelectionState::Full:
         return SelectionOffsets { 0, m_length_in_code_units, true };
     case Paintable::SelectionState::StartAndEnd:
-        if (start_index > end_offset_in_code_units || end_index < start_offset_in_code_units)
+        if (dom_start > end_offset_in_code_units || dom_end < start_offset_in_code_units)
             return {};
         return SelectionOffsets {
-            start_offset_in_code_units - min(start_offset_in_code_units, m_start_offset),
-            min(end_offset_in_code_units - m_start_offset, m_length_in_code_units),
-            end_offset_in_code_units >= end_index,
+            start_offset_in_code_units - min(start_offset_in_code_units, dom_start),
+            min(end_offset_in_code_units - dom_start, m_length_in_code_units),
+            end_offset_in_code_units >= dom_end,
         };
     case Paintable::SelectionState::Start:
-        if (end_index < start_offset_in_code_units)
+        if (dom_end < start_offset_in_code_units)
             return {};
         return SelectionOffsets {
-            start_offset_in_code_units - min(start_offset_in_code_units, m_start_offset),
+            start_offset_in_code_units - min(start_offset_in_code_units, dom_start),
             m_length_in_code_units,
             true,
         };
     case Paintable::SelectionState::End:
-        if (start_index > end_offset_in_code_units)
+        if (dom_start > end_offset_in_code_units)
             return {};
         return SelectionOffsets {
             0,
-            min(end_offset_in_code_units - m_start_offset, m_length_in_code_units),
-            end_offset_in_code_units >= end_index,
+            min(end_offset_in_code_units - dom_start, m_length_in_code_units),
+            end_offset_in_code_units >= dom_end,
         };
     }
     VERIFY_NOT_REACHED();
@@ -123,14 +182,28 @@ CSSPixelRect PaintableFragment::range_rect(Paintable::SelectionState selection_s
         float width_accumulator = 0.f;
 
         if (m_glyph_run) {
-            size_t code_units_seen = 0;
-            for (auto const& glyph : m_glyph_run->glyphs()) {
-                if (code_units_seen < offsets->start)
-                    offset_accumulator += glyph.glyph_width;
-                else if (code_units_seen < offsets->end)
-                    width_accumulator += glyph.glyph_width;
-                code_units_seen += glyph.length_in_code_units;
-            }
+            // Walk the glyph run, splitting any cluster that spans multiple code units proportionally between the
+            // pre-selection offset and the in-selection width when the selection range partially overlaps the cluster.
+            // This allows ligatures to be partially selected.
+            for_each_cluster_in_glyph_run(*m_glyph_run, m_length_in_code_units, [&](size_t cluster_start, size_t cluster_end, float cluster_width) {
+                if (cluster_end <= offsets->start) {
+                    offset_accumulator += cluster_width;
+                    return IterationDecision::Continue;
+                }
+                if (cluster_start >= offsets->end)
+                    return IterationDecision::Continue;
+
+                auto per_unit_advance = cluster_width / static_cast<float>(cluster_end - cluster_start);
+
+                if (cluster_start < offsets->start)
+                    offset_accumulator += per_unit_advance * static_cast<float>(offsets->start - cluster_start);
+
+                auto in_sel_start = max(cluster_start, offsets->start);
+                auto in_sel_end = min(cluster_end, offsets->end);
+                width_accumulator += per_unit_advance * static_cast<float>(in_sel_end - in_sel_start);
+
+                return IterationDecision::Continue;
+            });
         }
 
         pixel_offset = CSSPixels { offset_accumulator };
@@ -235,9 +308,10 @@ CSSPixelRect PaintableFragment::selection_rect() const
 
 Utf16View PaintableFragment::text() const
 {
-    if (!is<TextPaintable>(paintable()))
+    auto const* text_paintable = as_if<TextPaintable>(paintable());
+    if (!text_paintable)
         return {};
-    return as<TextPaintable>(paintable()).layout_node().text_for_rendering().substring_view(m_start_offset, m_length_in_code_units);
+    return text_paintable->layout_node().text_for_rendering().substring_view(m_start_offset, m_length_in_code_units);
 }
 
 }

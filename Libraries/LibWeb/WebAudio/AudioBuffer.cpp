@@ -5,6 +5,7 @@
  */
 
 #include <LibJS/Runtime/Completion.h>
+#include <LibJS/Runtime/ExternalMemory.h>
 #include <LibJS/Runtime/Realm.h>
 #include <LibJS/Runtime/TypedArray.h>
 #include <LibJS/Runtime/VM.h>
@@ -20,10 +21,14 @@ GC_DEFINE_ALLOCATOR(AudioBuffer);
 
 WebIDL::ExceptionOr<GC::Ref<AudioBuffer>> AudioBuffer::create(JS::Realm& realm, WebIDL::UnsignedLong number_of_channels, WebIDL::UnsignedLong length, float sample_rate)
 {
-    return construct_impl(realm, { number_of_channels, length, sample_rate });
+    Bindings::AudioBufferOptions options {};
+    options.number_of_channels = number_of_channels;
+    options.length = length;
+    options.sample_rate = sample_rate;
+    return construct_impl(realm, options);
 }
 
-WebIDL::ExceptionOr<GC::Ref<AudioBuffer>> AudioBuffer::construct_impl(JS::Realm& realm, AudioBufferOptions const& options)
+WebIDL::ExceptionOr<GC::Ref<AudioBuffer>> AudioBuffer::construct_impl(JS::Realm& realm, Bindings::AudioBufferOptions const& options)
 {
     // 1. If any of the values in options lie outside its nominal range, throw a NotSupportedError exception and abort the following steps.
     TRY(BaseAudioContext::verify_audio_options_inside_nominal_range(realm, options.number_of_channels, options.length, options.sample_rate));
@@ -82,7 +87,7 @@ WebIDL::ExceptionOr<GC::Ref<JS::Float32Array>> AudioBuffer::get_channel_data(Web
 }
 
 // https://webaudio.github.io/web-audio-api/#dom-audiobuffer-copyfromchannel
-WebIDL::ExceptionOr<void> AudioBuffer::copy_from_channel(GC::Root<WebIDL::BufferSource> const& destination, WebIDL::UnsignedLong channel_number, WebIDL::UnsignedLong buffer_offset) const
+WebIDL::ExceptionOr<void> AudioBuffer::copy_from_channel(GC::Ref<JS::Float32Array> destination, WebIDL::UnsignedLong channel_number, WebIDL::UnsignedLong buffer_offset) const
 {
     // The copyFromChannel() method copies the samples from the specified channel of the AudioBuffer to the destination array.
     //
@@ -91,10 +96,7 @@ WebIDL::ExceptionOr<void> AudioBuffer::copy_from_channel(GC::Root<WebIDL::Buffer
     // then the remaining elements of destination are not modified.
     auto& vm = this->vm();
 
-    if (!is<JS::Float32Array>(*destination->raw_object()))
-        return vm.throw_completion<JS::TypeError>(JS::ErrorType::NotAnObjectOfType, "Float32Array");
-    auto& float32_array = static_cast<JS::Float32Array&>(*destination->raw_object());
-    if (float32_array.viewed_array_buffer()->is_shared_array_buffer())
+    if (destination->viewed_array_buffer()->is_shared_array_buffer())
         return vm.throw_completion<JS::TypeError>(JS::ErrorType::SharedArrayBuffer, "Float32Array");
 
     auto const channel = TRY(get_channel_data(channel_number));
@@ -103,14 +105,15 @@ WebIDL::ExceptionOr<void> AudioBuffer::copy_from_channel(GC::Root<WebIDL::Buffer
     if (buffer_offset >= channel_length)
         return {};
 
-    u32 count = min(float32_array.data().size(), channel_length - buffer_offset);
-    channel->data().slice(buffer_offset, count).copy_to(float32_array.data());
+    auto destination_data = destination->data();
+    auto count = min(destination_data.size(), channel_length - buffer_offset);
+    channel->data().slice(buffer_offset, count).copy_to(destination_data.slice(0, count));
 
     return {};
 }
 
 // https://webaudio.github.io/web-audio-api/#dom-audiobuffer-copytochannel
-WebIDL::ExceptionOr<void> AudioBuffer::copy_to_channel(GC::Root<WebIDL::BufferSource> const& source, WebIDL::UnsignedLong channel_number, WebIDL::UnsignedLong buffer_offset)
+WebIDL::ExceptionOr<void> AudioBuffer::copy_to_channel(GC::Ref<JS::Float32Array> source, WebIDL::UnsignedLong channel_number, WebIDL::UnsignedLong buffer_offset)
 {
     // The copyToChannel() method copies the samples to the specified channel of the AudioBuffer from the source array.
     //
@@ -121,10 +124,7 @@ WebIDL::ExceptionOr<void> AudioBuffer::copy_to_channel(GC::Root<WebIDL::BufferSo
     // then the remaining elements of buffer are not modified.
     auto& vm = this->vm();
 
-    if (!is<JS::Float32Array>(*source->raw_object()))
-        return vm.throw_completion<JS::TypeError>(JS::ErrorType::NotAnObjectOfType, "Float32Array");
-    auto const& float32_array = static_cast<JS::Float32Array const&>(*source->raw_object());
-    if (float32_array.viewed_array_buffer()->is_shared_array_buffer())
+    if (source->viewed_array_buffer()->is_shared_array_buffer())
         return vm.throw_completion<JS::TypeError>(JS::ErrorType::SharedArrayBuffer, "Float32Array");
 
     auto channel = TRY(get_channel_data(channel_number));
@@ -133,13 +133,14 @@ WebIDL::ExceptionOr<void> AudioBuffer::copy_to_channel(GC::Root<WebIDL::BufferSo
     if (buffer_offset >= channel_length)
         return {};
 
-    u32 count = min(float32_array.data().size(), channel_length - buffer_offset);
-    float32_array.data().slice(0, count).copy_to(channel->data().slice(buffer_offset, count));
+    auto source_data = source->data();
+    auto count = min(source_data.size(), channel_length - buffer_offset);
+    source_data.slice(0, count).copy_to(channel->data().slice(buffer_offset, count));
 
     return {};
 }
 
-AudioBuffer::AudioBuffer(JS::Realm& realm, AudioBufferOptions const& options)
+AudioBuffer::AudioBuffer(JS::Realm& realm, Bindings::AudioBufferOptions const& options)
     : Bindings::PlatformObject(realm)
     , m_length(options.length)
     , m_sample_rate(options.sample_rate)
@@ -156,6 +157,11 @@ void AudioBuffer::visit_edges(Cell::Visitor& visitor)
 {
     Base::visit_edges(visitor);
     visitor.visit(m_channels);
+}
+
+size_t AudioBuffer::external_memory_size() const
+{
+    return JS::saturating_add_external_memory_size(Base::external_memory_size(), JS::vector_external_memory_size(m_channels));
 }
 
 }

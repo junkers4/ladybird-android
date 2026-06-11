@@ -9,10 +9,10 @@
 #pragma once
 
 #include <AK/Vector.h>
+#include <LibWeb/Bindings/NavigationType.h>
 #include <LibWeb/Export.h>
 #include <LibWeb/Geolocation/Geolocation.h>
 #include <LibWeb/HTML/Navigable.h>
-#include <LibWeb/HTML/NavigationType.h>
 #include <LibWeb/HTML/SessionHistoryTraversalQueue.h>
 #include <LibWeb/HTML/VisibilityState.h>
 #include <LibWeb/Page/Page.h>
@@ -60,6 +60,7 @@ public:
     HistoryObjectLengthAndIndex get_the_history_object_length_and_index(int) const;
 
     void apply_the_traverse_history_step(int, GC::Ptr<SourceSnapshotParams>, GC::Ptr<Navigable>, UserNavigationInvolvement, GC::Ref<GC::Function<void(HistoryStepResult)>> on_complete);
+    void resume_applying_the_traverse_history_step(int, UserNavigationInvolvement, GC::Ref<GC::Function<void(HistoryStepResult)>> on_complete);
     void apply_the_reload_history_step(UserNavigationInvolvement, GC::Ref<GC::Function<void(HistoryStepResult)>> on_complete);
     enum class SynchronousNavigation : bool {
         Yes,
@@ -115,6 +116,7 @@ public:
     {
         m_screenshot_tasks.enqueue({ node_id });
         set_needs_repaint();
+        page().client().request_frame();
     }
 
 private:
@@ -135,6 +137,7 @@ private:
         UserNavigationInvolvement user_involvement,
         Optional<Bindings::NavigationType> navigation_type,
         SynchronousNavigation,
+        Navigable::NavigationAPIAbortBehavior,
         GC::Ptr<DOM::Document> pending_document,
         GC::Ref<OnApplyHistoryStepComplete> on_complete);
 
@@ -145,6 +148,7 @@ private:
         UserNavigationInvolvement user_involvement,
         Optional<Bindings::NavigationType> navigation_type,
         SynchronousNavigation,
+        Navigable::NavigationAPIAbortBehavior,
         GC::Ptr<DOM::Document> pending_document,
         GC::Ref<OnApplyHistoryStepComplete> on_complete);
 

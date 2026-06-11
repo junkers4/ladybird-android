@@ -49,6 +49,11 @@ void SVGUseElement::initialize(JS::Realm& realm)
 
     m_document_observer = realm.create<DOM::DocumentObserver>(realm, document());
     m_document_observer->set_document_completely_loaded([this]() {
+        // The href processing path already populated the shadow tree for resolved references,
+        // unless the referenced subtree changed while the document was still loading.
+        if (instance_root() && !m_needs_document_complete_reclone)
+            return;
+        m_needs_document_complete_reclone = false;
         clone_element_tree_as_our_shadow_tree(referenced_element());
     });
 }
@@ -59,6 +64,14 @@ void SVGUseElement::visit_edges(Cell::Visitor& visitor)
     SVGURIReferenceMixin::visit_edges(visitor);
     visitor.visit(m_document_observer);
     visitor.visit(m_resource_request);
+}
+
+void SVGUseElement::adopted_from(DOM::Document& old_document)
+{
+    Base::adopted_from(old_document);
+
+    if (m_load_event_delayer.has_value())
+        m_load_event_delayer.emplace(document());
 }
 
 void SVGUseElement::attribute_changed(FlyString const& name, Optional<String> const& old_value, Optional<String> const& value, Optional<FlyString> const& namespace_)
@@ -118,6 +131,17 @@ void SVGUseElement::svg_element_changed(SVGElement& svg_element)
     if (to_clone == &svg_element || to_clone->is_ancestor_of(svg_element)) {
         clone_element_tree_as_our_shadow_tree(to_clone);
     }
+}
+
+void SVGUseElement::svg_element_changed_before_document_complete(SVGElement& svg_element)
+{
+    auto to_clone = referenced_element();
+    if (!to_clone)
+        return;
+
+    // NOTE: We need to check the ancestor because attribute_changed of a child doesn't call children_changed on the parent(s)
+    if (to_clone == &svg_element || to_clone->is_ancestor_of(svg_element))
+        m_needs_document_complete_reclone = true;
 }
 
 void SVGUseElement::svg_element_removed(SVGElement& svg_element)
@@ -299,9 +323,9 @@ GC::Ptr<SVGElement> SVGUseElement::animated_instance_root() const
     return instance_root();
 }
 
-GC::Ptr<Layout::Node> SVGUseElement::create_layout_node(GC::Ref<CSS::ComputedProperties> style)
+RefPtr<Layout::Node> SVGUseElement::create_layout_node(CSS::ComputedProperties const& style)
 {
-    return heap().allocate<Layout::SVGGraphicsBox>(document(), *this, move(style));
+    return make_ref_counted<Layout::SVGGraphicsBox>(document(), *this, style);
 }
 
 }

@@ -37,14 +37,19 @@
 //!
 //! ## Temporary registers
 //!
-//! | DSL name  | Purpose                                            |
-//! |-----------|----------------------------------------------------|
-//! | `t0`-`t9` | General-purpose scratch (caller-saved)              |
-//! | `ft0`-`ft3` | Floating-point scratch (caller-saved)            |
+//! Temporaries are introduced by name with `temp` (GPR) and `ftemp` (FPR)
+//! at the top of a handler or macro body; the register allocator assigns
+//! each to a physical register from the platform's caller-saved pool. The
+//! DSL also exposes `sp` and `fp`. None of the temporaries survive C++
+//! calls (`call_slow_path`, `call_helper`, `call_interp`, `call_raw_native`).
 //!
-//! Temporaries are **not preserved across C++ calls** (`call_slow_path`,
-//! `call_helper`, `call_interp`, `call_raw_native`). The DSL also provides
-//! `sp` and `fp`.
+//! Some physical registers are reserved as codegen scratch and are not
+//! addressable as DSL names. On aarch64 these are `x9`, `x10`, and `d16`.
+//! On x86_64 the codegen claims `rax`, `rcx`, `r11`, and `xmm3` as scratch
+//! at specific instructions -- the per-instruction metadata in
+//! `instructions.rs` records exactly which physical registers are killed
+//! by each DSL operation, and the allocator avoids placing a live named
+//! temp in any of those.
 //!
 //! ## DSL instruction reference
 //!
@@ -59,6 +64,24 @@
 //!   to a bytecode address).
 //! - `jmp label` -- Unconditional branch to a local label within the handler.
 //! - `exit` -- Jump to the exit path, returning control to C++.
+//! - `assert_eq a, b` -- In assertion-enabled builds, trap if `a != b`.
+//! - `assert_ne a, b` -- In assertion-enabled builds, trap if `a == b`.
+//! - `assert_lt_unsigned a, b` -- In assertion-enabled builds, trap if
+//!   `a >= b`.
+//! - `assert_ge_unsigned a, b` -- In assertion-enabled builds, trap if
+//!   `a < b`.
+//! - `assert_zero a` -- In assertion-enabled builds, trap if `a != 0`.
+//! - `assert_nonzero a` -- In assertion-enabled builds, trap if `a == 0`.
+//! - `assert_bits_set a, mask` -- In assertion-enabled builds, trap if
+//!   `(a & mask) == 0`.
+//! - `assert_bits_clear a, mask` -- In assertion-enabled builds, trap if
+//!   `(a & mask) != 0`.
+//! - `assert_tag value, tag` -- In assertion-enabled builds, trap if
+//!   `value`'s upper 16-bit NaN-boxing tag is not `tag`.
+//! - `assert_not_tag value, tag` -- In assertion-enabled builds, trap if
+//!   `value`'s upper 16-bit NaN-boxing tag is `tag`.
+//!   Release/distribution builds pass assertions through the parser and
+//!   allocator, but emit no code for them.
 //!
 //! ### C++ interop
 //!
@@ -249,9 +272,17 @@
 //! end
 //!
 //! handler OpName, size=N       # Bytecode handler (size optional if in Bytecode.def)
+//!     temp name1, name2, ...   # Declare GPR temporaries (allocator-assigned)
+//!     ftemp name1, ...         # Declare FPR temporaries
 //!     instructions...
 //! end
 //! ```
+//!
+//! Named temporaries declared with `temp` / `ftemp` are scoped to the
+//! enclosing handler or macro body. The register allocator assigns each
+//! to a physical register from the public temp pool; positional aliases
+//! (`t0`-`t8`, `ft0`-`ft3`) remain available for code that wants to pin
+//! a value to a specific platform register.
 //!
 //! Labels within handlers: `.name:` (local, prefixed with handler name in output).
 //!
@@ -282,8 +313,10 @@
 //! "UNKNOWN" comment for any unhandled mnemonic, which makes it easy to find
 //! missing instructions during development.
 
+mod allocator;
 mod codegen_aarch64;
 mod codegen_x86_64;
+mod instructions;
 mod parser;
 mod registers;
 mod shared;
@@ -302,10 +335,12 @@ fn main() {
     let mut constants_path = None;
     let mut bytecode_def_path = None;
     let mut has_jscvt = false;
+    let mut enable_assertions = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--has-jscvt" => has_jscvt = true,
+            "--enable-assertions" => enable_assertions = true,
             "--arch" => {
                 let val = args.next().expect("--arch requires a value");
                 arch = match val.as_str() {
@@ -378,6 +413,7 @@ fn main() {
 
     program.object_format = object_format;
     program.has_jscvt = has_jscvt;
+    program.enable_assertions = enable_assertions;
 
     let output = match arch {
         Arch::X86_64 => codegen_x86_64::generate(&program),

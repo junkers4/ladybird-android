@@ -13,7 +13,7 @@
 
 ErrorOr<int> service_main(int ipc_socket)
 {
-    Core::EventLoop event_loop;
+    auto& event_loop = Core::EventLoop::initialize_for_current_thread();
 
     auto socket = TRY(Core::LocalSocket::adopt_fd(ipc_socket));
     [[maybe_unused]] auto client = ImageDecoder::ConnectionFromClient::construct(make<IPC::Transport>(move(socket)));

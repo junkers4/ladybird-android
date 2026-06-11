@@ -16,6 +16,8 @@
 struct LadybirdWebView {
     GtkWidget parent_instance;
     Ladybird::WebContentView* impl { nullptr };
+    double last_mouse_x { 0 };
+    double last_mouse_y { 0 };
 };
 
 struct LadybirdWebViewClass {
@@ -85,6 +87,12 @@ static gboolean on_key_pressed(GtkEventControllerKey*, guint keyval, guint, GdkM
     if (!self->impl)
         return GDK_EVENT_PROPAGATE;
 
+    if (self->impl->is_node_picker_active()) {
+        if (keyval == GDK_KEY_Escape)
+            self->impl->node_picker_cancel();
+        return GDK_EVENT_STOP;
+    }
+
     self->impl->enqueue_native_event(Web::KeyEvent::Type::KeyDown, keyval, state);
     return GDK_EVENT_STOP;
 }
@@ -93,6 +101,9 @@ static void on_key_released(GtkEventControllerKey*, guint keyval, guint, GdkModi
 {
     auto* self = LADYBIRD_WEB_VIEW(user_data);
     if (!self->impl)
+        return;
+
+    if (self->impl->is_node_picker_active())
         return;
 
     self->impl->enqueue_native_event(Web::KeyEvent::Type::KeyUp, keyval, state);
@@ -108,6 +119,18 @@ static void on_mouse_pressed(GtkGestureClick* gesture, gint n_press, gdouble x, 
 
     auto button = gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture));
     auto state = gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(gesture));
+    if (self->impl->is_node_picker_active()) {
+        if (button == GDK_BUTTON_PRIMARY) {
+            auto position = Web::DevicePixelPoint { static_cast<int>(x * self->impl->device_pixel_ratio()), static_cast<int>(y * self->impl->device_pixel_ratio()) };
+            if (state & GDK_CONTROL_MASK)
+                self->impl->node_picker_preview(position);
+            else
+                self->impl->node_picker_pick(position);
+        }
+        gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+        return;
+    }
+
     self->impl->enqueue_native_event(Web::MouseEvent::Type::MouseDown, x, y, button, state, n_press);
 }
 
@@ -117,6 +140,11 @@ static void on_mouse_released(GtkGestureClick* gesture, gint n_press, gdouble x,
     if (!self->impl)
         return;
 
+    if (self->impl->is_node_picker_active()) {
+        gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+        return;
+    }
+
     auto button = gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture));
     auto state = gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(gesture));
     self->impl->enqueue_native_event(Web::MouseEvent::Type::MouseUp, x, y, button, state, n_press);
@@ -125,8 +153,16 @@ static void on_mouse_released(GtkGestureClick* gesture, gint n_press, gdouble x,
 static void on_mouse_motion(GtkEventControllerMotion* controller, gdouble x, gdouble y, gpointer user_data)
 {
     auto* self = LADYBIRD_WEB_VIEW(user_data);
+    self->last_mouse_x = x;
+    self->last_mouse_y = y;
     if (!self->impl)
         return;
+
+    if (self->impl->is_node_picker_active()) {
+        auto position = Web::DevicePixelPoint { static_cast<int>(x * self->impl->device_pixel_ratio()), static_cast<int>(y * self->impl->device_pixel_ratio()) };
+        self->impl->node_picker_hover(position);
+        return;
+    }
 
     auto state = gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(controller));
     self->impl->enqueue_native_event(Web::MouseEvent::Type::MouseMove, x, y, 0, state, 0);
@@ -138,6 +174,11 @@ static void on_mouse_leave(GtkEventControllerMotion*, gpointer user_data)
     if (!self->impl)
         return;
 
+    if (self->impl->is_node_picker_active()) {
+        self->impl->clear_node_picker();
+        return;
+    }
+
     self->impl->enqueue_native_event(Web::MouseEvent::Type::MouseLeave, 0, 0, 0, static_cast<GdkModifierType>(0), 0);
 }
 
@@ -146,6 +187,9 @@ static gboolean on_scroll(GtkEventControllerScroll* controller, gdouble dx, gdou
     auto* self = LADYBIRD_WEB_VIEW(user_data);
     if (!self->impl)
         return GDK_EVENT_PROPAGATE;
+
+    if (self->impl->is_node_picker_active())
+        return GDK_EVENT_STOP;
 
     auto state = gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(controller));
 
@@ -160,26 +204,31 @@ static gboolean on_scroll(GtkEventControllerScroll* controller, gdouble dx, gdou
 
     auto device_pixel_ratio = self->impl->device_pixel_ratio();
 
-    int wheel_delta_x = 0;
-    int wheel_delta_y = 0;
+    double wheel_delta_x = 0;
+    double wheel_delta_y = 0;
 
     auto* gdk_event = gtk_event_controller_get_current_event(GTK_EVENT_CONTROLLER(controller));
     auto unit = gdk_scroll_event_get_unit(gdk_event);
 
     if (unit == GDK_SCROLL_UNIT_SURFACE) {
-        wheel_delta_x = static_cast<int>(dx * device_pixel_ratio);
-        wheel_delta_y = static_cast<int>(dy * device_pixel_ratio);
+        wheel_delta_x = dx * device_pixel_ratio;
+        wheel_delta_y = dy * device_pixel_ratio;
     } else {
         static constexpr double scroll_lines = 3.0;
-        static constexpr double scroll_step_size = 24.0;
-        wheel_delta_x = static_cast<int>(dx * scroll_lines * scroll_step_size * device_pixel_ratio);
-        wheel_delta_y = static_cast<int>(dy * scroll_lines * scroll_step_size * device_pixel_ratio);
+        static constexpr double scroll_step_size = 40.0;
+        wheel_delta_x = dx * scroll_lines * scroll_step_size * device_pixel_ratio;
+        wheel_delta_y = dy * scroll_lines * scroll_step_size * device_pixel_ratio;
     }
+
+    // GDK scroll events on Wayland do not carry reliable pointer coordinates, so we
+    // use the last position recorded by the motion controller instead.
+    auto position = Web::DevicePixelPoint { static_cast<int>(self->last_mouse_x * device_pixel_ratio), static_cast<int>(self->last_mouse_y * device_pixel_ratio) };
 
     Web::MouseEvent event {
         .type = Web::MouseEvent::Type::MouseWheel,
-        .position = {},
-        .screen_position = {},
+        .position = position,
+        // FIXME: This should be absolute screen coordinates, but Wayland does not expose window positions to applications.
+        .screen_position = position,
         .button = Web::UIEvents::MouseButton::None,
         .buttons = Web::UIEvents::MouseButton::None,
         .modifiers = Ladybird::gdk_modifier_to_web(state),

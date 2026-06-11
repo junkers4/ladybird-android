@@ -61,7 +61,7 @@ public:
 
     WebIDL::ExceptionOr<void> set_html_unsafe(TrustedTypes::TrustedHTMLOrString const&);
 
-    WebIDL::ExceptionOr<String> get_html(GetHTMLOptions const&) const;
+    WebIDL::ExceptionOr<String> get_html(Bindings::GetHTMLOptions const&) const;
 
     GC::Ptr<Element> active_element();
 
@@ -186,8 +186,11 @@ inline bool Node::fast_is<ShadowRoot>() const { return node_type() == to_underly
 template<typename Callback>
 inline TraversalDecision Node::for_each_shadow_including_inclusive_descendant(Callback callback)
 {
-    if (callback(*this) == TraversalDecision::Break)
+    auto decision = callback(*this);
+    if (decision == TraversalDecision::Break)
         return TraversalDecision::Break;
+    if (decision == TraversalDecision::SkipChildrenAndContinue)
+        return TraversalDecision::Continue;
 
     if (this->for_each_shadow_including_descendant(callback) == TraversalDecision::Break)
         return TraversalDecision::Break;

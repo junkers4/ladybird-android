@@ -9,12 +9,14 @@
 
 #pragma once
 
+#include <AK/Function.h>
 #include <LibWeb/DOM/DocumentLoadEventDelayer.h>
 #include <LibWeb/Fetch/Infrastructure/FetchAlgorithms.h>
 #include <LibWeb/Fetch/Infrastructure/HTTP/Requests.h>
 #include <LibWeb/Forward.h>
 #include <LibWeb/HTML/CORSSettingAttribute.h>
 #include <LibWeb/HTML/HTMLElement.h>
+#include <LibWeb/HTML/PreloadEntry.h>
 
 namespace Web::HTML {
 
@@ -36,7 +38,8 @@ public:
     GC::Ref<DOM::DOMTokenList> sizes();
 
     bool has_loaded_icon() const;
-    bool load_favicon_and_use_if_window_is_active();
+    bool has_icon_keyword() const;
+    RefPtr<Gfx::Bitmap const> load_favicon_if_window_is_active();
 
     static void load_fallback_favicon_if_needed(GC::Ref<DOM::Document>);
 
@@ -133,51 +136,11 @@ private:
         Fetch::Infrastructure::Request::Priority fetch_priority { Fetch::Infrastructure::Request::Priority::Auto };
     };
 
-    // https://html.spec.whatwg.org/multipage/links.html#preload-key
-    struct PreloadKey {
-        static PreloadKey create(Fetch::Infrastructure::Request const&);
-
-        // URL
-        //     A URL
-        URL::URL url;
-
-        // destination
-        //     A string
-        Optional<Fetch::Infrastructure::Request::Destination> destination;
-
-        // mode
-        //     A request mode, either "same-origin", "cors", or "no-cors"
-        Fetch::Infrastructure::Request::Mode mode;
-
-        // credentials mode
-        //     A credentials mode
-        Fetch::Infrastructure::Request::CredentialsMode credentials_mode;
-    };
-
-    // https://html.spec.whatwg.org/multipage/links.html#preload-entry
-    struct PreloadEntry final : public JS::Cell {
-        GC_CELL(PreloadEntry, JS::Cell);
-        GC_DECLARE_ALLOCATOR(PreloadEntry);
-
-        virtual void visit_edges(Cell::Visitor& visitor) override;
-
-        // integrity metadata
-        //     A string
-        String integrity_metadata;
-
-        // response
-        //     Null or a response
-        GC::Ptr<Fetch::Infrastructure::Response> response;
-
-        // on response available
-        //     Null, or an algorithm accepting a response or null
-        GC::Ptr<GC::Function<void(GC::Ptr<Fetch::Infrastructure::Response>)>> on_response_available;
-    };
-
     HTMLLinkElement(DOM::Document&, DOM::QualifiedName);
 
     virtual void initialize(JS::Realm&) override;
     virtual void visit_edges(Cell::Visitor&) override;
+    virtual void adopted_from(DOM::Document&) override;
 
     // ^DOM::Node
     virtual bool is_html_link_element() const override { return true; }
@@ -191,7 +154,7 @@ private:
     GC::Ptr<Fetch::Infrastructure::Request> create_link_request(LinkProcessingOptions const&);
 
     void fetch_and_process_linked_resource();
-    void default_fetch_and_process_linked_resource();
+    void default_fetch_and_process_linked_resource(u64 fetch_generation);
     void fetch_and_process_linked_dns_prefetch_resource();
     void fetch_and_process_linked_preconnect_resource();
     void fetch_and_process_linked_preload_resource();
@@ -201,11 +164,11 @@ private:
     bool stylesheet_linked_resource_fetch_setup_steps(Fetch::Infrastructure::Request&);
 
     void preconnect(LinkProcessingOptions const&);
-    void preload(LinkProcessingOptions&, GC::Ptr<GC::Function<void(Fetch::Infrastructure::Response&)>> process_response = {});
+    void preload(LinkProcessingOptions&, Function<void(Fetch::Infrastructure::Response&)> process_response = {});
 
-    void process_linked_resource(bool success, Fetch::Infrastructure::Response const&, ByteBuffer);
+    void process_linked_resource(bool success, Fetch::Infrastructure::Response const&, Core::ImmutableBytes const*);
     void process_icon_resource(bool success, Fetch::Infrastructure::Response const&, ByteBuffer);
-    void process_stylesheet_resource(bool success, Fetch::Infrastructure::Response const&, ByteBuffer);
+    void process_stylesheet_resource(bool success, Fetch::Infrastructure::Response const&, ReadonlyBytes);
 
     bool should_fetch_and_process_resource_type() const;
 
@@ -234,6 +197,7 @@ private:
     GC::Ptr<DOM::DOMTokenList> m_rel_list;
     GC::Ptr<DOM::DOMTokenList> m_sizes;
     unsigned m_relationship { 0 };
+    u64 m_current_fetch_generation { 0 };
 
     // https://html.spec.whatwg.org/multipage/semantics.html#explicitly-enabled
     bool m_explicitly_enabled { false };

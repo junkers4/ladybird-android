@@ -11,6 +11,8 @@
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/CSS/CSSStyleProperties.h>
 #include <LibWeb/CSS/ComputedProperties.h>
+#include <LibWeb/CSS/Invalidation/ElementStateInvalidator.h>
+#include <LibWeb/CSS/Invalidation/FormControlInvalidator.h>
 #include <LibWeb/CSS/StyleValues/DisplayStyleValue.h>
 #include <LibWeb/CSS/StyleValues/KeywordStyleValue.h>
 #include <LibWeb/DOM/Document.h>
@@ -336,7 +338,11 @@ WebIDL::Long HTMLSelectElement::selected_index() const
 WebIDL::ExceptionOr<void> HTMLSelectElement::set_selected_index(WebIDL::Long index)
 {
     // The selectedIndex setter steps are:
-    ScopeGuard guard { [&]() { clone_selected_option_into_select_button(); } };
+    ScopeGuard guard { [&]() {
+        clone_selected_option_into_select_button();
+        // AD-HOC: Changing the selected option can change whether a required select satisfies its constraints.
+        CSS::Invalidation::invalidate_style_after_validity_change(*this);
+    } };
 
     // 1. Let firstMatchingOption be null.
     GC::Ptr<HTMLOptionElement> first_matching_option;
@@ -418,8 +424,8 @@ void HTMLSelectElement::children_changed(ChildrenChangedMetadata const& metadata
 String const& HTMLSelectElement::type() const
 {
     // The type IDL attribute, on getting, must return the string "select-one" if the multiple attribute is absent, and the string "select-multiple" if the multiple attribute is present.
-    static String const select_one = "select-one"_string;
-    static String const select_multiple = "select-multiple"_string;
+    static String const& select_one = *new String("select-one"_string);
+    static String const& select_multiple = *new String("select-multiple"_string);
 
     if (!has_attribute(AttributeNames::multiple))
         return select_one;
@@ -457,7 +463,11 @@ Utf16String HTMLSelectElement::value() const
 WebIDL::ExceptionOr<void> HTMLSelectElement::set_value(Utf16String const& value)
 {
     // The value setter steps are:
-    ScopeGuard guard { [&]() { clone_selected_option_into_select_button(); } };
+    ScopeGuard guard { [&]() {
+        clone_selected_option_into_select_button();
+        // AD-HOC: Changing the selected option can change whether a required select satisfies its constraints.
+        CSS::Invalidation::invalidate_style_after_validity_change(*this);
+    } };
     update_cached_list_of_options();
 
     // 1. Let firstMatchingOption be null.
@@ -496,6 +506,9 @@ void HTMLSelectElement::send_select_update_notifications()
         // 1. Set the select element's user validity to true.
         m_user_validity = true;
 
+        // AD-HOC: Setting the user validity changes which of the :user-valid and :user-invalid pseudo-classes match.
+        CSS::Invalidation::invalidate_style_after_validity_change(*this);
+
         // 2. Run update a select's selectedcontent given element.
         MUST(update_selectedcontent());
 
@@ -521,7 +534,7 @@ void HTMLSelectElement::set_is_open(bool open)
         return;
 
     m_is_open = open;
-    invalidate_style(DOM::StyleInvalidationReason::HTMLSelectElementSetIsOpen);
+    CSS::Invalidation::invalidate_style_after_select_open_state_change(*this);
 }
 
 bool HTMLSelectElement::has_activation_behavior() const
@@ -677,6 +690,10 @@ void HTMLSelectElement::form_associated_element_attribute_changed(FlyString cons
             update_selectedness();
         }
     }
+
+    // AD-HOC: Changing the required or multiple attribute can change whether the select satisfies its constraints.
+    if (name == HTML::AttributeNames::required || name == HTML::AttributeNames::multiple)
+        CSS::Invalidation::invalidate_style_after_validity_change(*this);
 }
 
 void HTMLSelectElement::computed_properties_changed()
@@ -822,21 +839,24 @@ void HTMLSelectElement::update_selectedness()
     //         set of selected options may have changed. Run the spec's "clone selected option into select button"
     //         algorithm so the button stays in sync.
     clone_selected_option_into_select_button();
+
+    // AD-HOC: A change to the selected option can change whether a required select satisfies its constraints.
+    CSS::Invalidation::invalidate_style_after_validity_change(*this);
 }
 
 bool HTMLSelectElement::is_focusable() const
 {
-    return enabled();
+    return enabled() && meets_focusable_area_rendering_requirements();
 }
 
 // https://html.spec.whatwg.org/multipage/form-elements.html#placeholder-label-option
 HTMLOptionElement* HTMLSelectElement::placeholder_label_option() const
 {
-    // If a select element has a required attribute specified, does not have a multiple attribute specified, and has a display size of 1;
-    if (has_attribute(HTML::AttributeNames::required) && !has_attribute(HTML::AttributeNames::multiple) && display_size() == 1) {
-        // and if the value of the first option element in the
-        // select element's list of options (if any) is the empty string, and that option element's parent node is the select element (and not an optgroup element), then that option is the
-        // select element's placeholder label option.
+    // If a select element has a required attribute specified, and has a display size of 1;
+    if (has_attribute(HTML::AttributeNames::required) && display_size() == 1) {
+        // and if the value of the first option element in the select element's list of options (if any) is the empty
+        // string, and that option element's parent node is the select element (and not an optgroup element), then that
+        // option is the select element's placeholder label option.
         auto first_option_element = list_of_options()[0];
         if (first_option_element->value().is_empty() && first_option_element->parent() == this)
             return first_option_element;

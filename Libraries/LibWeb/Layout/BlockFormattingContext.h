@@ -77,7 +77,7 @@ public:
     void reset_margin_state() { m_margin_state.reset(); }
 
     struct FloatingBox {
-        GC::Ref<Box const> box;
+        Box const& box;
 
         LayoutState::UsedValues& used_values;
 
@@ -110,7 +110,7 @@ private:
     void place_block_level_element_in_normal_flow_vertically(Box const&, CSSPixels y);
 
     void ensure_sizes_correct_for_left_offset_calculation(ListItemBox const&);
-    void layout_list_item_marker(ListItemBox const&, CSSPixels const& left_space_before_list_item_elements_formatted);
+    void layout_list_item_marker(ListItemBox const&, SpaceUsedByFloats const& inline_space_used_before_list_item_elements_formatted);
 
     void measure_scrollable_overflow(Box const&, CSSPixels& bottom_edge, CSSPixels& right_edge) const;
 

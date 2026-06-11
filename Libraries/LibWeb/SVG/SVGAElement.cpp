@@ -6,6 +6,7 @@
  */
 
 #include <LibWeb/Bindings/SVGAElement.h>
+#include <LibWeb/CSS/Invalidation/LinkInvalidator.h>
 #include <LibWeb/DOM/DOMTokenList.h>
 #include <LibWeb/HTML/UserNavigationInvolvement.h>
 #include <LibWeb/Layout/SVGGraphicsBox.h>
@@ -42,16 +43,8 @@ void SVGAElement::attribute_changed(FlyString const& name, Optional<String> cons
 {
     Base::attribute_changed(name, old_value, value, namespace_);
 
-    if (name == SVG::AttributeNames::href) {
-        invalidate_style(
-            DOM::StyleInvalidationReason::HTMLHyperlinkElementHrefChange,
-            {
-                { .type = CSS::InvalidationSet::Property::Type::PseudoClass, .value = CSS::PseudoClass::AnyLink },
-                { .type = CSS::InvalidationSet::Property::Type::PseudoClass, .value = CSS::PseudoClass::Link },
-                { .type = CSS::InvalidationSet::Property::Type::PseudoClass, .value = CSS::PseudoClass::LocalLink },
-            },
-            {});
-    }
+    if (name == SVG::AttributeNames::href)
+        CSS::Invalidation::invalidate_style_after_hyperlink_state_change(*this);
     if (name == HTML::AttributeNames::rel) {
         if (m_rel_list)
             m_rel_list->associated_attribute_changed(value.value_or(String {}));
@@ -82,9 +75,9 @@ GC::Ref<DOM::DOMTokenList> SVGAElement::rel_list()
     return *m_rel_list;
 }
 
-GC::Ptr<Layout::Node> SVGAElement::create_layout_node(GC::Ref<CSS::ComputedProperties> style)
+RefPtr<Layout::Node> SVGAElement::create_layout_node(CSS::ComputedProperties const& style)
 {
-    return heap().allocate<Layout::SVGGraphicsBox>(document(), *this, move(style));
+    return make_ref_counted<Layout::SVGGraphicsBox>(document(), *this, style);
 }
 
 // https://html.spec.whatwg.org/multipage/links.html#links-created-by-a-and-area-elements

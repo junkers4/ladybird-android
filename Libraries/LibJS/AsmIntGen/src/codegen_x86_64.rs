@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+use crate::allocator::{flatten_and_allocate, handler_uses_named_temps};
 use crate::parser::{AsmInstruction, Handler, ObjectFormat, Operand, Program};
 use crate::registers::{Arch, resolve_register};
 use crate::shared::{
@@ -288,9 +289,29 @@ fn generate_handler(out: &mut String, handler: &Handler, program: &Program) {
 
     let mut state = HandlerState::new();
 
-    // Expand macros and emit instructions
-    for insn in &handler.instructions {
-        emit_instruction(out, insn, handler, program, &mut state);
+    if handler_uses_named_temps(handler, program) {
+        // The allocator pre-expands macros and rewrites named temps to
+        // physical registers, so emit_instruction iterates a flat list and
+        // never re-enters the macro-expansion arm. The shared
+        // unique_counter is consumed for canonicalize_nan fixup labels
+        // continuing after the macro-id range used by the allocator.
+        let mut counter = state.unique_counter;
+        let flat = flatten_and_allocate(handler, program, Arch::X86_64, &mut counter)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "register allocation failed for handler '{}': {}",
+                    err.handler, err.message
+                )
+            });
+        state.unique_counter = counter;
+        for insn in &flat {
+            emit_instruction(out, insn, handler, program, &mut state);
+        }
+    } else {
+        // Existing path: expand macros recursively in emit_instruction.
+        for insn in &handler.instructions {
+            emit_instruction(out, insn, handler, program, &mut state);
+        }
     }
 
     // Emit cold fixup blocks after the main handler body
@@ -384,6 +405,61 @@ fn resolve_pair_memory_op(op: &Operand, handler: &Handler, program: &Program) ->
     format_x86_memory_operand(&mem)
 }
 
+/// True when writing `dst1` would clobber a register that the second load
+/// of a pair still needs (the base or index of either memory operand).
+/// `mem1` / `mem2` are the already-formatted x86 memory text (e.g.
+/// `[rcx + r10 * 8]`); we check whether the formatted text mentions the
+/// destination register name as a whole word.
+fn pair_dst_aliases_address(dst1: &str, mem1: &str, mem2: &str) -> bool {
+    let mention_in = |s: &str, reg: &str| -> bool {
+        s.split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+            .any(|tok| tok == reg)
+    };
+    mention_in(mem1, dst1) || mention_in(mem2, dst1)
+}
+
+fn emit_assert_bits(
+    out: &mut String,
+    insn: &AsmInstruction,
+    handler: &Handler,
+    program: &Program,
+    state: &mut HandlerState,
+    want_set: bool,
+) {
+    if insn.operands.len() != 2 {
+        return;
+    }
+
+    let a = resolve_op(&insn.operands[0], handler, program);
+    let ok_label = format!(".Lasm_{}.assert_ok_{}", handler.name, state.unique_counter);
+    state.unique_counter += 1;
+    let pass_cc = if want_set { "jnz" } else { "jz" };
+    let pass_bit_cc = if want_set { "jc" } else { "jnc" };
+
+    if let Some(mask) = get_immediate_value(&insn.operands[1], program) {
+        let mask = mask as u64;
+        if mask >> 32 == 0 {
+            let a32 = to_32bit_reg(&a);
+            w!(out, "    test {a32}, {mask}");
+            w!(out, "    {pass_cc} {ok_label}");
+        } else if mask.is_power_of_two() {
+            w!(out, "    bt {a}, {}", mask.trailing_zeros());
+            w!(out, "    {pass_bit_cc} {ok_label}");
+        } else {
+            panic!(
+                "x86_64 assert_bits requires a low-32-bit mask or a single-bit 64-bit mask in handler '{}', got {mask:#x}",
+                handler.name
+            );
+        }
+    } else {
+        let mask = resolve_op(&insn.operands[1], handler, program);
+        w!(out, "    test {a}, {mask}");
+        w!(out, "    {pass_cc} {ok_label}");
+    }
+    w!(out, "    ud2");
+    w!(out, "{ok_label}:");
+}
+
 fn emit_instruction(
     out: &mut String,
     insn: &AsmInstruction,
@@ -404,6 +480,78 @@ fn emit_instruction(
                 }
             }
         }
+
+        // Named-temporary declarations: `temp foo, bar` introduces GPR
+        // temps named `foo` and `bar`; `ftemp baz` introduces an FPR temp.
+        // The register allocator processes these before codegen runs --
+        // by the time we get here they are pure annotations and emit
+        // nothing.
+        "temp" | "ftemp" => {}
+
+        "assert_eq" | "assert_ne" if program.enable_assertions => {
+            if insn.operands.len() == 2 {
+                let a = resolve_op(&insn.operands[0], handler, program);
+                let b = resolve_op(&insn.operands[1], handler, program);
+                let ok_label = format!(".Lasm_{}.assert_ok_{}", handler.name, state.unique_counter);
+                state.unique_counter += 1;
+                let cc = if m == "assert_eq" { "je" } else { "jne" };
+                w!(out, "    cmp {a}, {b}");
+                w!(out, "    {cc} {ok_label}");
+                w!(out, "    ud2");
+                w!(out, "{ok_label}:");
+            }
+        }
+
+        "assert_lt_unsigned" | "assert_ge_unsigned" if program.enable_assertions => {
+            if insn.operands.len() == 2 {
+                let a = resolve_op(&insn.operands[0], handler, program);
+                let b = resolve_op(&insn.operands[1], handler, program);
+                let ok_label = format!(".Lasm_{}.assert_ok_{}", handler.name, state.unique_counter);
+                state.unique_counter += 1;
+                let cc = if m == "assert_lt_unsigned" { "jb" } else { "jae" };
+                w!(out, "    cmp {a}, {b}");
+                w!(out, "    {cc} {ok_label}");
+                w!(out, "    ud2");
+                w!(out, "{ok_label}:");
+            }
+        }
+
+        "assert_zero" | "assert_nonzero" if program.enable_assertions => {
+            if insn.operands.len() == 1 {
+                let a = resolve_op(&insn.operands[0], handler, program);
+                let ok_label = format!(".Lasm_{}.assert_ok_{}", handler.name, state.unique_counter);
+                state.unique_counter += 1;
+                let cc = if m == "assert_zero" { "jz" } else { "jnz" };
+                w!(out, "    test {a}, {a}");
+                w!(out, "    {cc} {ok_label}");
+                w!(out, "    ud2");
+                w!(out, "{ok_label}:");
+            }
+        }
+
+        "assert_bits_set" | "assert_bits_clear" if program.enable_assertions => {
+            emit_assert_bits(out, insn, handler, program, state, m == "assert_bits_set");
+        }
+
+        "assert_tag" | "assert_not_tag" if program.enable_assertions => {
+            if insn.operands.len() == 2 {
+                let value = resolve_op(&insn.operands[0], handler, program);
+                let tag = resolve_op(&insn.operands[1], handler, program);
+                let ok_label = format!(".Lasm_{}.assert_ok_{}", handler.name, state.unique_counter);
+                state.unique_counter += 1;
+                let cc = if m == "assert_tag" { "je" } else { "jne" };
+                w!(out, "    mov r11, {value}");
+                w!(out, "    shr r11, 48");
+                w!(out, "    cmp r11, {tag}");
+                w!(out, "    {cc} {ok_label}");
+                w!(out, "    ud2");
+                w!(out, "{ok_label}:");
+            }
+        }
+
+        "assert_eq" | "assert_ne" | "assert_lt_unsigned" | "assert_ge_unsigned" | "assert_zero"
+        | "assert_nonzero" | "assert_bits_set" | "assert_bits_clear" | "assert_tag"
+        | "assert_not_tag" => {}
 
         // Macro invocations
         _ if program.macros.contains_key(m) => {
@@ -520,14 +668,36 @@ fn emit_instruction(
 
         // call_raw_native pseudo-instruction
         // Indirectly calls ThrowCompletionOr<Value> (*)(VM&) from a register.
-        // Passes the hidden VM* as the sole argument. Result payload lands in
-        // rax (t0) and the Variant index is normalized into rcx (t1).
+        // Result payload lands in rax (t0) and the Variant index is normalized
+        // into rcx (t1).
+        //
+        // x86_64 ABI difference when returning ThrowCompletionOr<Value>:
+        // - SysV (ELF: Linux/BSD): returned in rax/rdx.
+        // - Darwin (Mach-O): returned via sret (hidden pointer in rdi).
+        //
+        // Codegen is split based on the object format to match the ABI.
         "call_raw_native" => {
             if let Some(op) = insn.operands.first() {
                 let func = resolve_op(op, handler, program);
                 w!(out, "    mov r11, {func}");
-                w!(out, "    mov rdi, QWORD PTR [rbp - 48]");
-                w!(out, "    call r11");
+                if matches!(program.object_format, ObjectFormat::MachO) {
+                    // sret: hidden pointer in rdi, VM& in rsi. Reserve a 16-byte
+                    // return slot on the stack; rsp is already 16-byte aligned
+                    // at this point, so sub rsp, 16 preserves the alignment the
+                    // call requires.
+                    w!(out, "    sub rsp, 16");
+                    w!(out, "    mov rdi, rsp");
+                    w!(out, "    mov rsi, QWORD PTR [rbp - 48]");
+                    w!(out, "    call r11");
+                    w!(out, "    mov rax, QWORD PTR [rsp]");
+                    w!(out, "    mov rdx, QWORD PTR [rsp + 8]");
+                    w!(out, "    add rsp, 16");
+                } else {
+                    // Register return: VM& in rdi, result lands in rax (payload)
+                    // and rdx (tag).
+                    w!(out, "    mov rdi, QWORD PTR [rbp - 48]");
+                    w!(out, "    call r11");
+                }
                 w!(out, "    mov rcx, rdx");
             }
         }
@@ -818,8 +988,17 @@ fn emit_instruction(
                 let dst2 = resolve_op(&insn.operands[1], handler, program);
                 let mem1 = resolve_pair_memory_op(&insn.operands[2], handler, program);
                 let mem2 = resolve_pair_memory_op(&insn.operands[3], handler, program);
-                w!(out, "    mov {dst1}, QWORD PTR {mem1}");
-                w!(out, "    mov {dst2}, QWORD PTR {mem2}");
+                // x86 has no real "load pair", so this is two movs. If dst1
+                // is the same physical register as the address's base or
+                // index, writing dst1 first clobbers the address before the
+                // second load can use it; emit dst2 first in that case.
+                if pair_dst_aliases_address(&dst1, &mem1, &mem2) {
+                    w!(out, "    mov {dst2}, QWORD PTR {mem2}");
+                    w!(out, "    mov {dst1}, QWORD PTR {mem1}");
+                } else {
+                    w!(out, "    mov {dst1}, QWORD PTR {mem1}");
+                    w!(out, "    mov {dst2}, QWORD PTR {mem2}");
+                }
             }
         }
 
@@ -841,8 +1020,13 @@ fn emit_instruction(
                 let dst2 = resolve_op(&insn.operands[1], handler, program);
                 let mem1 = resolve_pair_memory_op(&insn.operands[2], handler, program);
                 let mem2 = resolve_pair_memory_op(&insn.operands[3], handler, program);
-                w!(out, "    mov {}, DWORD PTR {mem1}", to_32bit_reg(&dst1));
-                w!(out, "    mov {}, DWORD PTR {mem2}", to_32bit_reg(&dst2));
+                if pair_dst_aliases_address(&dst1, &mem1, &mem2) {
+                    w!(out, "    mov {}, DWORD PTR {mem2}", to_32bit_reg(&dst2));
+                    w!(out, "    mov {}, DWORD PTR {mem1}", to_32bit_reg(&dst1));
+                } else {
+                    w!(out, "    mov {}, DWORD PTR {mem1}", to_32bit_reg(&dst1));
+                    w!(out, "    mov {}, DWORD PTR {mem2}", to_32bit_reg(&dst2));
+                }
             }
         }
 
@@ -1473,6 +1657,7 @@ mod tests {
             opcode_list: Vec::new(),
             object_format: ObjectFormat::MachO,
             has_jscvt: false,
+            enable_assertions: false,
         }
     }
 
@@ -1488,9 +1673,11 @@ mod tests {
     fn preserves_scaled_index_memory_operands() {
         let program = test_program();
         let handler = call_handler();
+        // Operands that already resolved to platform registers (post-
+        // allocation) flow through resolve_op unchanged.
         let memory = Operand::Memory {
-            base: "t0".into(),
-            index: Some("t8".into()),
+            base: "rax".into(),
+            index: Some("r11".into()),
             scale: Some("8".into()),
         };
 
@@ -1502,8 +1689,8 @@ mod tests {
         let program = test_program();
         let handler = call_handler();
         let memory = Operand::Memory {
-            base: "t6".into(),
-            index: Some("t3".into()),
+            base: "r9".into(),
+            index: Some("rsi".into()),
             scale: Some("0".into()),
         };
 
@@ -1511,6 +1698,19 @@ mod tests {
             resolve_pair_memory_op(&memory, &handler, &program),
             "[r9 + rsi]"
         );
+    }
+
+    #[test]
+    fn pair_dst_aliasing_base_keeps_address_alive() {
+        // load_pair64 dst1, dst2, [base + 0], [base + 8] must not start by
+        // writing dst1 if dst1 happens to be the same physical register
+        // as base; the second load would otherwise read from the wrong
+        // address. The codegen swaps the load order in that case.
+        assert!(pair_dst_aliases_address("rcx", "[rcx]", "[rcx + 8]"));
+        assert!(pair_dst_aliases_address("r10", "[r10 + 16]", "[r10 + 24]"));
+        assert!(pair_dst_aliases_address("rdx", "[rcx + rdx * 8]", "[rcx + rdx * 8 + 8]"));
+        assert!(!pair_dst_aliases_address("rax", "[rcx + 16]", "[rcx + 24]"));
+        assert!(!pair_dst_aliases_address("rax", "[r10]", "[r10 + 8]"));
     }
 
     #[test]
@@ -1523,7 +1723,7 @@ mod tests {
         let instruction = AsmInstruction {
             mnemonic: "branch_bits_clear".into(),
             operands: vec![
-                Operand::Register("t2".into()),
+                Operand::Register("rdx".into()),
                 Operand::Constant("HIGH_BIT".into()),
                 Operand::Label(".slow".into()),
             ],

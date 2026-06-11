@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/NeverDestroyed.h>
 #include <AK/NumberFormat.h>
 #include <LibJS/Runtime/NativeFunction.h>
 #include <LibWeb/CSS/CSSStyleProperties.h>
 #include <LibWeb/CSS/PropertyID.h>
 #include <LibWeb/DOM/DOMTokenList.h>
 #include <LibWeb/DOM/Document.h>
+#include <LibWeb/DOM/ElementFactory.h>
 #include <LibWeb/DOM/Event.h>
 #include <LibWeb/DOM/IDLEventListener.h>
 #include <LibWeb/DOM/ShadowRoot.h>
@@ -18,11 +20,13 @@
 #include <LibWeb/HTML/HTMLMediaElement.h>
 #include <LibWeb/HTML/HTMLVideoElement.h>
 #include <LibWeb/HTML/MediaControls.h>
+#include <LibWeb/HTML/TimeRanges.h>
 #include <LibWeb/HTML/Window.h>
 #include <LibWeb/UIEvents/EventNames.h>
 #include <LibWeb/UIEvents/KeyboardEvent.h>
 #include <LibWeb/UIEvents/MouseEvent.h>
 #include <LibWeb/WebIDL/CallbackType.h>
+#include <LibWeb/WebIDL/Promise.h>
 
 namespace Web::HTML {
 
@@ -40,6 +44,11 @@ MediaControls::~MediaControls()
         m_media_element->set_shadow_root(nullptr);
 }
 
+void MediaControls::visit_edges(GC::Cell::Visitor& visitor)
+{
+    visitor.visit(m_request_animation_frame_callback);
+}
+
 void MediaControls::create_shadow_tree()
 {
     auto& media_element = *m_media_element;
@@ -54,12 +63,12 @@ void MediaControls::create_shadow_tree()
 
     m_dom = MediaControlsDOM(document, *shadow_root, is_video ? MediaControlsDOM::Options::Video : MediaControlsDOM::Options::None);
 
-    static Vector<String> s_video_class = { "video"_string };
-    static Vector<String> s_audio_class = { "audio"_string };
+    static NeverDestroyed<Vector<String>> video_class { Vector<String> { "video"_string } };
+    static NeverDestroyed<Vector<String>> audio_class { Vector<String> { "audio"_string } };
     if (is_video)
-        MUST(m_dom->container->class_list()->add(s_video_class));
+        MUST(m_dom->container->class_list()->add(*video_class));
     else
-        MUST(m_dom->container->class_list()->add(s_audio_class));
+        MUST(m_dom->container->class_list()->add(*audio_class));
 
     // Initialize state
     update_play_pause_icon();
@@ -86,7 +95,7 @@ GC::Ref<DOM::IDLEventListener> MediaControls::add_event_listener(JS::Realm& real
     auto callback = realm.heap().allocate<WebIDL::CallbackType>(*callback_function, realm);
     auto listener = DOM::IDLEventListener::create(realm, callback);
 
-    DOM::AddEventListenerOptions options;
+    Bindings::AddEventListenerOptions options;
     options.once = listen_once == ListenOnce::Yes;
     target.add_event_listener(event_name, listener, options);
 
@@ -141,7 +150,6 @@ void MediaControls::set_up_event_listeners()
 {
     auto& media_element = *m_media_element;
     auto& realm = media_element.realm();
-    auto& window = as<HTML::Window>(realm.global_object());
 
     // Media element state events
     add_event_listener(realm, media_element, HTML::EventNames::play, [this]() {
@@ -157,6 +165,7 @@ void MediaControls::set_up_event_listeners()
     add_event_listener(realm, media_element, HTML::EventNames::playing, [this] {
         update_play_pause_icon();
         update_placeholder_visibility();
+        request_timeline_update();
         return true;
     });
     add_event_listener(realm, media_element, HTML::EventNames::seeked, [this] {
@@ -166,6 +175,10 @@ void MediaControls::set_up_event_listeners()
     add_event_listener(realm, media_element, HTML::EventNames::timeupdate, [this] {
         update_timeline();
         update_timestamp();
+        return true;
+    });
+    add_event_listener(realm, media_element, HTML::EventNames::progress, [this] {
+        update_timeline();
         return true;
     });
     add_event_listener(realm, media_element, HTML::EventNames::durationchange, [this] {
@@ -215,20 +228,20 @@ void MediaControls::set_up_event_listeners()
     }
 
     // Timeline scrubbing
-    static constexpr auto compute_timeline_position = [](UIEvents::MouseEvent const& event, DOM::Element& timeline_element, double duration) -> Optional<double> {
+    static constexpr auto compute_timeline_progress = [](UIEvents::MouseEvent const& event, DOM::Element& timeline_element, double duration) -> Optional<double> {
         if (isnan(duration) || duration == 0.0)
             return {};
         auto rect = timeline_element.get_bounding_client_rect();
-        auto fraction = clamp((event.client_x() - rect.left().to_double()) / rect.width().to_double(), 0.0, 1.0);
-        return fraction * duration;
+        return clamp((event.client_x() - rect.left().to_double()) / rect.width().to_double(), 0.0, 1.0);
     };
 
     add_event_listener(realm, *m_dom->timeline_element, UIEvents::EventNames::mousedown, [this](UIEvents::MouseEvent const& event) {
         VERIFY(m_media_element);
         VERIFY(m_dom->timeline_element);
 
-        auto position = compute_timeline_position(event, *m_dom->timeline_element, m_media_element->duration());
-        if (!position.has_value())
+        auto duration = m_media_element->duration();
+        auto progress = compute_timeline_progress(event, *m_dom->timeline_element, duration);
+        if (!progress.has_value())
             return false;
 
         m_scrubbing_timeline = Scrubbing::WhilePaused;
@@ -237,7 +250,9 @@ void MediaControls::set_up_event_listeners()
             m_scrubbing_timeline = Scrubbing::WhilePlaying;
         }
 
-        set_current_time(*position);
+        set_current_time(*progress * duration);
+        set_timeline_progress(*progress);
+        set_timestamp(*progress * duration, duration);
 
         auto& realm = m_media_element->realm();
         auto& window = as<HTML::Window>(realm.global_object());
@@ -246,11 +261,14 @@ void MediaControls::set_up_event_listeners()
             VERIFY(m_media_element);
             VERIFY(m_dom->timeline_element);
 
-            auto position = compute_timeline_position(event, *m_dom->timeline_element, m_media_element->duration());
-            if (!position.has_value())
+            auto duration = m_media_element->duration();
+            auto progress = compute_timeline_progress(event, *m_dom->timeline_element, duration);
+            if (!progress.has_value())
                 return false;
 
-            set_current_time(*position);
+            set_current_time(*progress * duration);
+            set_timeline_progress(*progress);
+            set_timestamp(*progress * duration, duration);
             return true;
         });
 
@@ -261,17 +279,18 @@ void MediaControls::set_up_event_listeners()
             auto was_playing = m_scrubbing_timeline == Scrubbing::WhilePlaying;
             m_scrubbing_timeline = Scrubbing::No;
 
-            auto position = compute_timeline_position(event, *m_dom->timeline_element, m_media_element->duration());
-            if (position.has_value())
-                set_current_time(*position);
+            auto duration = m_media_element->duration();
+            auto progress = compute_timeline_progress(event, *m_dom->timeline_element, duration);
+            if (progress.has_value())
+                set_current_time(*progress * duration);
 
             if (was_playing) {
                 if (m_media_element->ended()) {
                     auto loop = m_media_element->has_attribute(HTML::AttributeNames::loop);
                     if (loop)
-                        m_media_element->play();
+                        play();
                 } else {
-                    m_media_element->play();
+                    play();
                 }
             }
 
@@ -418,24 +437,29 @@ void MediaControls::set_up_event_listeners()
     // Use requestAnimationFrame to update the timeline, since timeupdate only fires every 250ms.
     auto request_animation_frame_callback_function = JS::NativeFunction::create(
         realm, [this](JS::VM&) {
+            m_request_animation_frame_id = 0;
             update_timeline();
-
-            auto& realm = m_media_element->realm();
-            auto& window = as<HTML::Window>(realm.global_object());
-            m_request_animation_frame_id = window.request_animation_frame(*m_request_animation_frame_callback);
-
+            request_timeline_update();
             return JS::js_undefined();
         },
         0, Utf16FlyString {}, &realm);
     m_request_animation_frame_callback = realm.heap().allocate<WebIDL::CallbackType>(request_animation_frame_callback_function, realm);
-    m_request_animation_frame_id = window.request_animation_frame(*m_request_animation_frame_callback);
+    request_timeline_update();
+}
+
+void MediaControls::play()
+{
+    WebIDL::mark_promise_as_handled(m_media_element->play());
 }
 
 void MediaControls::toggle_playback()
 {
     if (m_scrubbing_timeline != Scrubbing::No)
         return;
-    m_media_element->toggle_playback();
+    if (m_media_element->paused())
+        play();
+    else
+        m_media_element->pause();
     show_controls();
 }
 
@@ -482,33 +506,108 @@ void MediaControls::update_play_pause_icon()
     MUST(m_dom->play_pause_icon->class_list()->toggle(s_playing_class, !paused));
 }
 
+static String format_percent(double value)
+{
+    return MUST(String::formatted("{}%", value * 100));
+}
+
 void MediaControls::update_timeline()
 {
     VERIFY(m_media_element);
+    VERIFY(m_dom->timeline_track);
     VERIFY(m_dom->timeline_fill);
 
     auto duration = m_media_element->duration();
-    double percentage = 0.0;
-    if (!isnan(duration) && duration > 0.0)
-        percentage = (m_media_element->current_time() / duration) * 100.0;
 
-    if (m_last_timeline_percentage == percentage)
+    if (m_scrubbing_timeline == Scrubbing::No) {
+        double progress = 0.0;
+        if (!isnan(duration) && duration > 0.0)
+            progress = (m_media_element->current_time() / duration);
+        set_timeline_progress(progress);
+    }
+
+    auto buffered = m_media_element->buffered();
+    auto range_count = buffered->length();
+    if (isnan(duration) || duration <= 0.0)
+        range_count = 0;
+
+    while (m_buffered_ranges.size() > range_count) {
+        auto range_div = m_buffered_ranges.take_last();
+        VERIFY(range_div.element);
+        range_div.element->remove();
+    }
+
+    while (m_buffered_ranges.size() < range_count) {
+        auto range = MUST(DOM::create_element(m_media_element->document(), HTML::TagNames::div, Namespace::HTML));
+        static String const& timeline_buffered_class = *new String("timeline-buffered"_string);
+        MUST(range->class_list()->toggle(timeline_buffered_class, true));
+        MUST(range->style_for_bindings()->set_property(CSS::PropertyID::Display, "block"sv));
+        m_dom->timeline_track->insert_before(range, nullptr);
+        m_buffered_ranges.empend(*range);
+    }
+
+    for (size_t i = 0; i < range_count; i++) {
+        auto& range = m_buffered_ranges[i];
+        auto range_start = MUST(buffered->start(i));
+        auto range_duration = MUST(buffered->end(i)) - range_start;
+        auto left = range_start / duration;
+        auto width = range_duration / duration;
+        if (left == range.left && width == range.width)
+            continue;
+        range.left = left;
+        range.width = width;
+
+        auto style = range.element->style_for_bindings();
+        MUST(style->set_property(CSS::PropertyID::Left, format_percent(left)));
+        MUST(style->set_property(CSS::PropertyID::Width, format_percent(width)));
+    }
+}
+
+void MediaControls::set_timeline_progress(double progress)
+{
+    VERIFY(m_dom->timeline_fill);
+
+    if (m_last_timeline_progress == progress)
         return;
 
-    MUST(m_dom->timeline_fill->style_for_bindings()->set_property(CSS::PropertyID::Width, MUST(String::formatted("{}%", percentage))));
-    m_last_timeline_percentage = percentage;
+    MUST(m_dom->timeline_fill->style_for_bindings()->set_property(CSS::PropertyID::Width, format_percent(progress)));
+    m_last_timeline_progress = progress;
+}
+
+void MediaControls::request_timeline_update()
+{
+    if (m_request_animation_frame_id != 0)
+        return;
+    if (!m_media_element->potentially_playing())
+        return;
+
+    auto& realm = m_media_element->realm();
+    auto& window = as<HTML::Window>(realm.global_object());
+    m_request_animation_frame_id = window.request_animation_frame(*m_request_animation_frame_callback);
 }
 
 void MediaControls::update_timestamp()
 {
     VERIFY(m_media_element);
+    double time = static_cast<double>(m_last_timestamp_time);
+    if (m_scrubbing_timeline == Scrubbing::No)
+        time = m_media_element->current_time();
+    set_timestamp(time, m_media_element->duration());
+}
+
+void MediaControls::set_timestamp(double time, double duration)
+{
     VERIFY(m_dom->timestamp_element);
 
-    auto current = human_readable_digital_time(round_to<i64>(m_media_element->current_time()));
-    auto duration = m_media_element->duration();
-    auto total = human_readable_digital_time(isnan(duration) ? 0 : round_to<i64>(duration));
+    auto rounded_time = round_to<i64>(time);
+    auto rounded_duration = isnan(duration) ? 0 : round_to<i64>(duration);
 
-    MUST(m_dom->timestamp_element->set_text_content(Utf16String::formatted("{} / {}", current, total)));
+    if (rounded_time == m_last_timestamp_time && rounded_duration == m_last_timestamp_duration)
+        return;
+    m_last_timestamp_time = rounded_time;
+    m_last_timestamp_duration = rounded_duration;
+
+    MUST(m_dom->timestamp_element->set_text_content(Utf16String::formatted("{} / {}", human_readable_digital_time(rounded_time), human_readable_digital_time(rounded_duration))));
 }
 
 void MediaControls::update_volume_and_mute_indicator()
@@ -521,12 +620,10 @@ void MediaControls::update_volume_and_mute_indicator()
     auto has_audio = m_media_element->audio_tracks()->length() > 0;
     auto muted = !has_audio || m_media_element->muted();
 
-    if (muted) {
+    if (muted)
         MUST(m_dom->volume_fill->style_for_bindings()->set_property(CSS::PropertyID::Width, "0"sv));
-    } else {
-        auto percentage = volume * 100.0;
-        MUST(m_dom->volume_fill->style_for_bindings()->set_property(CSS::PropertyID::Width, MUST(String::formatted("{}%", percentage))));
-    }
+    else
+        MUST(m_dom->volume_fill->style_for_bindings()->set_property(CSS::PropertyID::Width, format_percent(volume)));
 
     auto new_volume_icon_state = [&] {
         if (volume > 0.5)
@@ -536,18 +633,18 @@ void MediaControls::update_volume_and_mute_indicator()
         return MuteIconState::Empty;
     }();
 
-    static constexpr auto icon_class = [](MuteIconState state) {
-        static Vector<String> s_no_volume_class = {};
-        static Vector<String> s_low_volume_class = { "low"_string };
-        static Vector<String> s_high_volume_class = { "high"_string };
+    static auto icon_class = [](MuteIconState state) -> Vector<String> const& {
+        static NeverDestroyed<Vector<String>> no_volume_class;
+        static NeverDestroyed<Vector<String>> low_volume_class { Vector<String> { "low"_string } };
+        static NeverDestroyed<Vector<String>> high_volume_class { Vector<String> { "high"_string } };
 
         switch (state) {
         case MuteIconState::Empty:
-            return s_no_volume_class;
+            return *no_volume_class;
         case MuteIconState::Low:
-            return s_low_volume_class;
+            return *low_volume_class;
         case MuteIconState::High:
-            return s_high_volume_class;
+            return *high_volume_class;
         }
         VERIFY_NOT_REACHED();
     };
@@ -558,13 +655,11 @@ void MediaControls::update_volume_and_mute_indicator()
         m_mute_icon_state = new_volume_icon_state;
     }
 
-    static Vector<String> s_muted_class = { "muted"_string };
     if (muted != m_was_muted) {
         MUST(m_dom->mute_button->class_list()->toggle("muted"_string, muted));
         m_was_muted = muted;
     }
 
-    static Vector<String> s_hidden_class = { "hidden"_string };
     if (has_audio != m_had_audio) {
         MUST(m_dom->volume_area->class_list()->toggle("hidden"_string, !has_audio));
         m_had_audio = has_audio;
@@ -576,12 +671,12 @@ void MediaControls::update_fullscreen_icon()
     if (!m_dom->fullscreen_icon)
         return;
 
-    static auto s_fullscreen_class = "fullscreen"_string;
+    static String const& fullscreen_class = *new String("fullscreen"_string);
 
     VERIFY(m_media_element);
 
     auto is_fullscreen_element = m_media_element->document().fullscreen_element() == m_media_element;
-    MUST(m_dom->fullscreen_icon->class_list()->toggle(s_fullscreen_class, is_fullscreen_element));
+    MUST(m_dom->fullscreen_icon->class_list()->toggle(fullscreen_class, is_fullscreen_element));
 }
 
 void MediaControls::update_placeholder_visibility()
@@ -604,13 +699,17 @@ bool MediaControls::should_show_placeholder() const
     return video_element.current_representation() != HTMLVideoElement::Representation::VideoFrame;
 }
 
-static Vector<String> s_visible_class = { "visible"_string };
+static Vector<String> const& visible_class()
+{
+    static NeverDestroyed<Vector<String>> visible_class { Vector<String> { "visible"_string } };
+    return *visible_class;
+}
 
 void MediaControls::show_controls()
 {
     VERIFY(m_dom->control_bar);
 
-    MUST(m_dom->control_bar->class_list()->add(s_visible_class));
+    MUST(m_dom->control_bar->class_list()->add(visible_class()));
 
     if (!m_hover_timer) {
         constexpr int hover_timeout_ms = 1000;
@@ -632,7 +731,7 @@ void MediaControls::hide_controls()
     if (m_dom->placeholder_circle && should_show_placeholder())
         return;
 
-    MUST(m_dom->control_bar->class_list()->remove(s_visible_class));
+    MUST(m_dom->control_bar->class_list()->remove(visible_class()));
     m_hover_timer.clear();
 }
 

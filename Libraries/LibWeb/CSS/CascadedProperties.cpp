@@ -4,32 +4,22 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <LibGC/WeakInlines.h>
 #include <LibWeb/CSS/CSSStyleDeclaration.h>
 #include <LibWeb/CSS/CascadedProperties.h>
-#include <LibWeb/CSS/Parser/Parser.h>
 #include <LibWeb/CSS/PropertyID.h>
-#include <LibWeb/CSS/PropertyNameAndID.h>
-#include <LibWeb/CSS/StyleComputer.h>
 #include <LibWeb/DOM/Element.h>
 #include <LibWeb/DOM/ShadowRoot.h>
 
 namespace Web::CSS {
 
-GC_DEFINE_ALLOCATOR(CascadedProperties);
-
 CascadedProperties::CascadedProperties() = default;
 
 CascadedProperties::~CascadedProperties() = default;
 
-void CascadedProperties::visit_edges(Visitor& visitor)
+NonnullRefPtr<CascadedProperties> CascadedProperties::create()
 {
-    Base::visit_edges(visitor);
-    for (auto const& [property_id, entries] : m_properties) {
-        for (auto const& entry : entries) {
-            visitor.visit(entry.source);
-            visitor.visit(entry.source_shadow_root);
-        }
-    }
+    return adopt_ref(*new CascadedProperties);
 }
 
 void CascadedProperties::revert_property(PropertyID property_id, Important important, CascadeOrigin cascade_origin)
@@ -39,9 +29,14 @@ void CascadedProperties::revert_property(PropertyID property_id, Important impor
         return;
     auto& entries = it->value;
     entries.remove_all_matching([&](auto& entry) {
+        // https://drafts.csswg.org/css-cascade-5/#author-presentational-hint-origin
+        // For the purpose of cascading this author presentational hint origin is treated as an independent origin, but
+        // for the purpose of the revert keyword it is considered part of the author origin.
+        auto origin_matches = entry.origin == cascade_origin
+            || (cascade_origin == CascadeOrigin::Author && entry.origin == CascadeOrigin::AuthorPresentationalHint);
         return entry.property.property_id == property_id
             && entry.property.important == important
-            && cascade_origin == entry.origin;
+            && origin_matches;
     });
     if (entries.is_empty()) {
         m_contained_properties_cache.set(to_underlying(property_id), false);
@@ -49,7 +44,7 @@ void CascadedProperties::revert_property(PropertyID property_id, Important impor
     }
 }
 
-void CascadedProperties::revert_layer_property(PropertyID property_id, Important important, Optional<FlyString> layer_name)
+void CascadedProperties::revert_layer_property(PropertyID property_id, Important important, CascadeOrigin cascade_origin, Optional<FlyString> layer_name, GC::Ptr<DOM::ShadowRoot const> source_shadow_root)
 {
     auto it = m_properties.find(property_id);
     if (it == m_properties.end())
@@ -58,22 +53,13 @@ void CascadedProperties::revert_layer_property(PropertyID property_id, Important
     entries.remove_all_matching([&](auto& entry) {
         return entry.property.property_id == property_id
             && entry.property.important == important
+            && entry.origin == cascade_origin
+            && entry.source_shadow_root.ptr() == source_shadow_root
             && layer_name == entry.layer_name;
     });
     if (entries.is_empty()) {
         m_contained_properties_cache.set(to_underlying(property_id), false);
         m_properties.remove(it);
-    }
-}
-
-void CascadedProperties::resolve_unresolved_properties(DOM::AbstractElement abstract_element)
-{
-    for (auto& [property_id, entries] : m_properties) {
-        for (auto& entry : entries) {
-            if (!entry.property.value->is_unresolved())
-                continue;
-            entry.property.value = Parser::Parser::resolve_unresolved_style_value(Parser::ParsingParams { abstract_element.document() }, abstract_element, PropertyNameAndID::from_id(property_id), entry.property.value->as_unresolved());
-        }
     }
 }
 
@@ -84,7 +70,7 @@ void CascadedProperties::set_property(PropertyID property_id, NonnullRefPtr<Styl
     auto& entries = m_properties.ensure(property_id);
 
     for (auto& entry : entries.in_reverse()) {
-        if (entry.origin == origin && entry.layer_name == layer_name) {
+        if (entry.origin == origin && entry.layer_name == layer_name && entry.source_shadow_root.ptr() == source_shadow_root) {
             if (entry.property.important == Important::Yes && important == Important::No)
                 return;
             entry.property = StyleProperty {
@@ -93,8 +79,8 @@ void CascadedProperties::set_property(PropertyID property_id, NonnullRefPtr<Styl
                 .value = value,
             };
             entry.cascade_index = m_next_cascade_index++;
-            entry.source = source;
-            entry.source_shadow_root = source_shadow_root;
+            entry.source = source.ptr();
+            entry.source_shadow_root = source_shadow_root.ptr();
             return;
         }
     }
@@ -108,30 +94,8 @@ void CascadedProperties::set_property(PropertyID property_id, NonnullRefPtr<Styl
         .cascade_index = m_next_cascade_index++,
         .origin = origin,
         .layer_name = move(layer_name),
-        .source = source,
-        .source_shadow_root = source_shadow_root,
-    });
-}
-
-void CascadedProperties::set_property_from_presentational_hint(PropertyID property_id, NonnullRefPtr<StyleValue const> value)
-{
-    StyleComputer::for_each_property_expanding_shorthands(property_id, value, [this](PropertyID longhand_property_id, StyleValue const& longhand_value) {
-        m_contained_properties_cache.set(to_underlying(longhand_property_id), true);
-
-        auto& entries = m_properties.ensure(longhand_property_id);
-
-        entries.append(Entry {
-            .property = StyleProperty {
-                .important = Important::No,
-                .property_id = longhand_property_id,
-                .value = longhand_value,
-            },
-            .cascade_index = m_next_cascade_index++,
-            .origin = CascadeOrigin::Author,
-            .layer_name = {},
-            .source = nullptr,
-            .source_shadow_root = nullptr,
-        });
+        .source = source.ptr(),
+        .source_shadow_root = source_shadow_root.ptr(),
     });
 }
 
@@ -162,7 +126,7 @@ GC::Ptr<CSSStyleDeclaration const> CascadedProperties::property_source(PropertyI
     if (!m_contained_properties_cache.get(to_underlying(property_id)))
         return nullptr;
 
-    return m_properties.get(property_id)->last().source;
+    return m_properties.get(property_id)->last().source.ptr();
 }
 
 GC::Ptr<DOM::ShadowRoot const> CascadedProperties::property_source_shadow_root(PropertyID property_id) const
@@ -170,7 +134,7 @@ GC::Ptr<DOM::ShadowRoot const> CascadedProperties::property_source_shadow_root(P
     if (!m_contained_properties_cache.get(to_underlying(property_id)))
         return nullptr;
 
-    return m_properties.get(property_id)->last().source_shadow_root;
+    return m_properties.get(property_id)->last().source_shadow_root.ptr();
 }
 
 Optional<StyleProperty> CascadedProperties::style_property(PropertyID property_id) const

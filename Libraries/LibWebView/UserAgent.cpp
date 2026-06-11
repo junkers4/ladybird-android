@@ -8,7 +8,8 @@
 
 namespace WebView {
 
-OrderedHashMap<StringView, StringView> const user_agents = {
+// NOTE: Newer UA versions than upstream — keeps anti-bot heuristics happier on mobile.
+OrderedHashMap<StringView, StringView> const& user_agents = *new OrderedHashMap<StringView, StringView> {
     { "Chrome Linux Desktop"sv, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"sv },
     { "Chrome macOS Desktop"sv, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"sv },
     { "Firefox Linux Desktop"sv, "Mozilla/5.0 (X11; Linux x86_64; rv:134.0) Gecko/20100101 Firefox/134.0"sv },

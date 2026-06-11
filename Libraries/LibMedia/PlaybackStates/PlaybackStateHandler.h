@@ -8,6 +8,7 @@
 
 #include <AK/Time.h>
 #include <LibMedia/Forward.h>
+#include <LibMedia/PipelineStatus.h>
 #include <LibMedia/PlaybackStates/AvailableData.h>
 #include <LibMedia/PlaybackStates/PlaybackState.h>
 #include <LibMedia/SeekMode.h>
@@ -25,6 +26,8 @@ public:
     virtual void on_enter() = 0;
     virtual void on_exit() = 0;
 
+    virtual AK::Duration current_time() const;
+
     virtual void start() { }
     virtual void play() = 0;
     virtual void pause() = 0;
@@ -34,11 +37,7 @@ public:
     virtual PlaybackState state() = 0;
     virtual AvailableData available_data() = 0;
 
-    virtual void enter_buffering() = 0;
-    virtual void exit_buffering() = 0;
-
-    virtual void on_track_enabled(Track const&);
-    virtual void on_track_disabled(Track const&) { }
+    virtual void on_pipeline_status_changed(PipelineStatus);
 
 protected:
     PlaybackManager& manager() const { return m_manager; }

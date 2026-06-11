@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <AK/ByteBuffer.h>
 #include <AK/Forward.h>
 #include <AK/Function.h>
 #include <AK/Optional.h>
@@ -21,6 +22,12 @@ class TEXTCODEC_API Decoder {
 public:
     virtual bool validate(StringView);
     virtual ErrorOr<String> to_utf8(StringView);
+    virtual ErrorOr<size_t> length_in_utf16_code_units(StringView);
+    ErrorOr<void> process_code_points(StringView, Function<ErrorOr<void>(u32)>);
+
+    // Returns the number of trailing bytes that form an incomplete sequence and must be buffered
+    // until more input arrives. Used by StreamingDecoder for chunked decoding.
+    virtual size_t incomplete_tail_length(ReadonlyBytes) const { return 0; }
 
 protected:
     virtual ~Decoder() = default;
@@ -32,24 +39,30 @@ public:
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
     virtual bool validate(StringView) override;
     virtual ErrorOr<String> to_utf8(StringView) override;
+    virtual ErrorOr<size_t> length_in_utf16_code_units(StringView) override;
+    virtual size_t incomplete_tail_length(ReadonlyBytes) const override;
 };
 
 class TEXTCODEC_API UTF16BEDecoder final : public Decoder {
 public:
     virtual bool validate(StringView) override;
     virtual ErrorOr<String> to_utf8(StringView) override;
+    virtual ErrorOr<size_t> length_in_utf16_code_units(StringView) override;
+    virtual size_t incomplete_tail_length(ReadonlyBytes) const override;
 
 private:
-    virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)>) override { VERIFY_NOT_REACHED(); }
+    virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)>) override;
 };
 
 class TEXTCODEC_API UTF16LEDecoder final : public Decoder {
 public:
     virtual bool validate(StringView) override;
     virtual ErrorOr<String> to_utf8(StringView) override;
+    virtual ErrorOr<size_t> length_in_utf16_code_units(StringView) override;
+    virtual size_t incomplete_tail_length(ReadonlyBytes) const override;
 
 private:
-    virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)>) override { VERIFY_NOT_REACHED(); }
+    virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)>) override;
 };
 
 template<Integral ArrayType = u32>
@@ -61,6 +74,7 @@ public:
     }
 
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
+    virtual ErrorOr<size_t> length_in_utf16_code_units(StringView) override;
 
 private:
     Array<ArrayType, 128> m_translation_table;
@@ -70,54 +84,80 @@ class TEXTCODEC_API Latin1Decoder final : public Decoder {
 public:
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
     virtual bool validate(StringView) override { return true; }
+    virtual ErrorOr<size_t> length_in_utf16_code_units(StringView) override;
 };
 
 class TEXTCODEC_API PDFDocEncodingDecoder final : public Decoder {
 public:
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
     virtual bool validate(StringView) override { return true; }
+    virtual ErrorOr<size_t> length_in_utf16_code_units(StringView) override;
 };
 
 class TEXTCODEC_API XUserDefinedDecoder final : public Decoder {
 public:
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
     virtual bool validate(StringView) override { return true; }
+    virtual ErrorOr<size_t> length_in_utf16_code_units(StringView) override;
 };
 
 class TEXTCODEC_API GB18030Decoder final : public Decoder {
 public:
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
+    virtual size_t incomplete_tail_length(ReadonlyBytes) const override;
 };
 
 class TEXTCODEC_API Big5Decoder final : public Decoder {
 public:
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
+    virtual size_t incomplete_tail_length(ReadonlyBytes) const override;
 };
 
 class TEXTCODEC_API EUCJPDecoder final : public Decoder {
 public:
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
+    virtual size_t incomplete_tail_length(ReadonlyBytes) const override;
 };
 
 class TEXTCODEC_API ISO2022JPDecoder final : public Decoder {
 public:
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
+    virtual size_t incomplete_tail_length(ReadonlyBytes) const override;
 };
 
 class TEXTCODEC_API ShiftJISDecoder final : public Decoder {
 public:
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
+    virtual size_t incomplete_tail_length(ReadonlyBytes) const override;
 };
 
 class TEXTCODEC_API EUCKRDecoder final : public Decoder {
 public:
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
+    virtual size_t incomplete_tail_length(ReadonlyBytes) const override;
 };
 
 class TEXTCODEC_API ReplacementDecoder final : public Decoder {
 public:
     virtual ErrorOr<void> process(StringView, Function<ErrorOr<void>(u32)> on_code_point) override;
     virtual bool validate(StringView input) override { return input.is_empty(); }
+    virtual ErrorOr<size_t> length_in_utf16_code_units(StringView) override;
+};
+
+// Preserves incomplete trailing decoder tokens when callers provide input in chunks.
+class TEXTCODEC_API StreamingDecoder final {
+public:
+    explicit StreamingDecoder(Decoder& decoder)
+        : m_decoder(decoder)
+    {
+    }
+
+    ErrorOr<String> to_utf8(ReadonlyBytes);
+    ErrorOr<String> finish();
+
+private:
+    Decoder& m_decoder;
+    ByteBuffer m_pending_input;
 };
 
 // This will return a decoder for the exact name specified, skipping get_standardized_encoding.
@@ -133,6 +173,7 @@ TEXTCODEC_API Optional<Decoder&> bom_sniff_to_decoder(StringView);
 // NOTE: This has an obnoxious name to discourage usage. Only use this if you absolutely must! For example, XHR in LibWeb uses this.
 // This will use the given decoder unless there is a byte order mark in the input, in which we will instead use the appropriate Unicode decoder.
 TEXTCODEC_API ErrorOr<String> convert_input_to_utf8_using_given_decoder_unless_there_is_a_byte_order_mark(Decoder&, StringView);
+TEXTCODEC_API ErrorOr<size_t> convert_input_to_utf16_length_using_given_decoder_unless_there_is_a_byte_order_mark(Decoder&, StringView);
 
 TEXTCODEC_API StringView get_output_encoding(StringView encoding);
 

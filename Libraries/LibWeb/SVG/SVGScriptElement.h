@@ -6,6 +6,9 @@
 
 #pragma once
 
+#include <AK/Forward.h>
+#include <LibURL/URL.h>
+#include <LibWeb/DOM/DocumentLoadEventDelayer.h>
 #include <LibWeb/SVG/SVGElement.h>
 #include <LibWeb/SVG/SVGURIReference.h>
 
@@ -24,6 +27,9 @@ public:
     bool is_parser_inserted() const { return m_parser_inserted; }
     void set_parser_inserted(Badge<HTML::HTMLParser>) { m_parser_inserted = true; }
 
+    bool is_ready_to_be_parser_executed() const { return m_ready_to_be_parser_executed; }
+    void execute_pending_parser_blocking_script(Badge<HTML::HTMLParser>);
+
     void set_source_line_number(Badge<HTML::HTMLParser>, size_t source_line_number) { m_source_line_number = source_line_number; }
 
     virtual void inserted() override;
@@ -39,11 +45,18 @@ private:
     virtual bool is_svg_script_element() const final { return true; }
 
     virtual void visit_edges(Cell::Visitor&) override;
+    virtual void adopted_from(DOM::Document&) override;
+
+    void finish_external_script_fetch(URL::URL const& script_url, ReadonlyBytes body);
+    void execute_script();
 
     bool m_already_processed { false };
     bool m_parser_inserted { false };
+    bool m_ready_to_be_parser_executed { false };
 
     GC::Ptr<HTML::ClassicScript> m_script;
+
+    Optional<DOM::DocumentLoadEventDelayer> m_document_load_event_delayer;
 
     size_t m_source_line_number { 1 };
 };

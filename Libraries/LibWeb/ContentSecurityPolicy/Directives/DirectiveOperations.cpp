@@ -7,6 +7,7 @@
 #include <AK/Base64.h>
 #include <AK/FlyString.h>
 #include <AK/HashMap.h>
+#include <AK/NeverDestroyed.h>
 #include <AK/Vector.h>
 #include <LibCrypto/Hash/SHA2.h>
 #include <LibWeb/ContentSecurityPolicy/Directives/DirectiveOperations.h>
@@ -32,55 +33,59 @@ namespace Web::ContentSecurityPolicy::Directives {
 // Will return an ordered set of the fallback directives for a specific directive.
 // The returned ordered set is sorted from most relevant to least relevant and it includes the effective directive
 // itself.
-static HashMap<StringView, Vector<StringView>> fetch_directive_fallback_list {
-    // "script-src-elem"
-    //      1. Return << "script-src-elem", "script-src", "default-src" >>.
-    { "script-src-elem"sv, { "script-src-elem"sv, "script-src"sv, "default-src"sv } },
+static auto const& fetch_directive_fallback_list()
+{
+    static NeverDestroyed<HashMap<StringView, Vector<StringView>>> list { HashMap<StringView, Vector<StringView>> {
+        // "script-src-elem"
+        //      1. Return << "script-src-elem", "script-src", "default-src" >>.
+        { "script-src-elem"sv, { "script-src-elem"sv, "script-src"sv, "default-src"sv } },
 
-    // "script-src-attr"
-    //      1. Return << "script-src-attr", "script-src", "default-src" >>.
-    { "script-src-attr"sv, { "script-src-attr"sv, "script-src"sv, "default-src"sv } },
+        // "script-src-attr"
+        //      1. Return << "script-src-attr", "script-src", "default-src" >>.
+        { "script-src-attr"sv, { "script-src-attr"sv, "script-src"sv, "default-src"sv } },
 
-    // "style-src-elem"
-    //      1. Return << "style-src-elem", "style-src", "default-src" >>.
-    { "style-src-elem"sv, { "style-src-elem"sv, "style-src"sv, "default-src"sv } },
+        // "style-src-elem"
+        //      1. Return << "style-src-elem", "style-src", "default-src" >>.
+        { "style-src-elem"sv, { "style-src-elem"sv, "style-src"sv, "default-src"sv } },
 
-    // "style-src-attr"
-    //      1. Return << "style-src-attr", "style-src", "default-src" >>.
-    { "style-src-attr"sv, { "style-src-attr"sv, "style-src"sv, "default-src"sv } },
+        // "style-src-attr"
+        //      1. Return << "style-src-attr", "style-src", "default-src" >>.
+        { "style-src-attr"sv, { "style-src-attr"sv, "style-src"sv, "default-src"sv } },
 
-    // "worker-src"
-    //      1. Return << "worker-src", "child-src", "script-src", "default-src" >>.
-    { "worker-src"sv, { "worker-src"sv, "child-src"sv, "script-src"sv, "default-src"sv } },
+        // "worker-src"
+        //      1. Return << "worker-src", "child-src", "script-src", "default-src" >>.
+        { "worker-src"sv, { "worker-src"sv, "child-src"sv, "script-src"sv, "default-src"sv } },
 
-    // "connect-src"
-    //      1. Return << "connect-src", "default-src" >>.
-    { "connect-src"sv, { "connect-src"sv, "default-src"sv } },
+        // "connect-src"
+        //      1. Return << "connect-src", "default-src" >>.
+        { "connect-src"sv, { "connect-src"sv, "default-src"sv } },
 
-    // "manifest-src"
-    //      1. Return << "manifest-src", "default-src" >>.
-    { "manifest-src"sv, { "manifest-src"sv, "default-src"sv } },
+        // "manifest-src"
+        //      1. Return << "manifest-src", "default-src" >>.
+        { "manifest-src"sv, { "manifest-src"sv, "default-src"sv } },
 
-    // "object-src"
-    //      1. Return << "object-src", "default-src" >>.
-    { "object-src"sv, { "object-src"sv, "default-src"sv } },
+        // "object-src"
+        //      1. Return << "object-src", "default-src" >>.
+        { "object-src"sv, { "object-src"sv, "default-src"sv } },
 
-    // "frame-src"
-    //      1. Return << "frame-src", "child-src", "default-src" >>.
-    { "frame-src"sv, { "frame-src"sv, "child-src"sv, "default-src"sv } },
+        // "frame-src"
+        //      1. Return << "frame-src", "child-src", "default-src" >>.
+        { "frame-src"sv, { "frame-src"sv, "child-src"sv, "default-src"sv } },
 
-    // "media-src"
-    //      1. Return << "media-src", "default-src" >>.
-    { "media-src"sv, { "media-src"sv, "default-src"sv } },
+        // "media-src"
+        //      1. Return << "media-src", "default-src" >>.
+        { "media-src"sv, { "media-src"sv, "default-src"sv } },
 
-    // "font-src"
-    //      1. Return << "font-src", "default-src" >>.
-    { "font-src"sv, { "font-src"sv, "default-src"sv } },
+        // "font-src"
+        //      1. Return << "font-src", "default-src" >>.
+        { "font-src"sv, { "font-src"sv, "default-src"sv } },
 
-    // "img-src"
-    //      1. Return << "img-src", "default-src" >>.
-    { "img-src"sv, { "img-src"sv, "default-src"sv } },
-};
+        // "img-src"
+        //      1. Return << "img-src", "default-src" >>.
+        { "img-src"sv, { "img-src"sv, "default-src"sv } },
+    } };
+    return *list;
+}
 
 // https://w3c.github.io/webappsec-csp/#effective-directive-for-a-request
 Optional<FlyString> get_the_effective_directive_for_request(GC::Ref<Fetch::Infrastructure::Request const> request)
@@ -98,6 +103,16 @@ Optional<FlyString> get_the_effective_directive_for_request(GC::Ref<Fetch::Infra
         return Names::ConnectSrc;
 
     switch (request->destination().value()) {
+    // https://html.spec.whatwg.org/multipage/browsing-the-web.html#process-a-navigate-fetch
+    // destination
+    //     "document" (NOTE: The destination is updated below when navigable has a container.)
+    // If navigable's container is non-null:
+    //     2. Set request's destination to navigable's container's local name.
+    // AD-HOC: CSP's effective directive algorithm does not have a "document" case, but falling through to connect-src
+    //         applies fetch directives to top-level document navigations. Treat these navigation requests as not having
+    //         a fetch directive.
+    case Fetch::Infrastructure::Request::Destination::Document:
+        return OptionalNone {};
     // "manifest"
     //      1. Return manifest-src.
     case Fetch::Infrastructure::Request::Destination::Manifest:
@@ -186,8 +201,8 @@ Vector<StringView> get_fetch_directive_fallback_list(Optional<FlyString> directi
     if (!directive_name.has_value())
         return {};
 
-    auto list_iterator = fetch_directive_fallback_list.find(directive_name.value());
-    if (list_iterator == fetch_directive_fallback_list.end())
+    auto list_iterator = fetch_directive_fallback_list().find(directive_name.value());
+    if (list_iterator == fetch_directive_fallback_list().end())
         return {};
 
     return list_iterator->value;

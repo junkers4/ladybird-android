@@ -116,7 +116,7 @@ def bits_for_count(count: int) -> int:
 
 
 class DOMElement:
-    def __init__(self, var_name: str, tag: str, option: str | None):
+    def __init__(self, var_name: str, tag: str, option: Optional[str]):
         self.var_name = var_name
         self.tag = tag
         self.option = option
@@ -366,9 +366,9 @@ def generate(
 
     # Static stylesheet sources
     for source_var, css_content in parser.stylesheet_sources:
-        impl_lines.append(f'static String {source_var} = R"~~~(')
+        impl_lines.append(f'static String const& {source_var} = *new String(R"~~~(')
         impl_lines.append(css_content.strip())
-        impl_lines.append(')~~~"_string;')
+        impl_lines.append(')~~~"_string);')
         impl_lines.append("")
 
     # Constructor

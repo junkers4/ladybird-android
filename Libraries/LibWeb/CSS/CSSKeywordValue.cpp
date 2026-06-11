@@ -12,6 +12,7 @@
 #include <LibWeb/CSS/PropertyNameAndID.h>
 #include <LibWeb/CSS/Serialize.h>
 #include <LibWeb/CSS/StyleValues/CustomIdentStyleValue.h>
+#include <LibWeb/CSS/StyleValues/DisplayStyleValue.h>
 #include <LibWeb/CSS/StyleValues/KeywordStyleValue.h>
 #include <LibWeb/WebIDL/ExceptionOr.h>
 
@@ -105,8 +106,15 @@ WebIDL::ExceptionOr<NonnullRefPtr<StyleValue const>> CSSKeywordValue::create_an_
     // NB: Non-applicable.
 
     //     Return the value.
-    if (auto keyword = keyword_from_string(m_value); keyword.has_value())
+    if (auto keyword = keyword_from_string(m_value); keyword.has_value()) {
+        if (!is_css_wide_keyword(m_value)) {
+            // NB: Non-css-wide keyword `display` values are represented internally by DisplayStyleValue, not KeywordStyleValue.
+            if (property.id() == PropertyID::Display)
+                return DisplayStyleValue::create(Display::from_keyword(keyword.release_value()));
+        }
+
         return KeywordStyleValue::create(*keyword);
+    }
     return CustomIdentStyleValue::create(m_value);
 }
 
@@ -116,8 +124,8 @@ GC::Ref<CSSKeywordValue> rectify_a_keywordish_value(JS::Realm& realm, CSSKeyword
     // To rectify a keywordish value val, perform the following steps:
     return keywordish.visit(
         // 1. If val is a CSSKeywordValue, return val.
-        [](GC::Root<CSSKeywordValue> const& value) -> GC::Ref<CSSKeywordValue> {
-            return *value;
+        [](GC::Ref<CSSKeywordValue> const& value) -> GC::Ref<CSSKeywordValue> {
+            return value;
         },
 
         // 2. If val is a DOMString, return a new CSSKeywordValue with its value internal slot set to val.

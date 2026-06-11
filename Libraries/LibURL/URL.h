@@ -33,7 +33,6 @@ enum class PercentEncodeSet {
     Userinfo,
     Component,
     ApplicationXWWWFormUrlencoded,
-    EncodeURI
 };
 
 enum class ExcludeFragment {
@@ -211,23 +210,9 @@ Optional<URL> create_with_url_or_path(ByteString const&);
 Optional<URL> create_with_file_scheme(ByteString const& path, ByteString const& fragment = {}, ByteString const& hostname = {});
 URL create_with_data(StringView mime_type, StringView payload, bool is_base64 = false);
 
-bool is_public_suffix(StringView host);
-Optional<String> get_registrable_domain(StringView host);
-
 inline URL about_blank() { return URL::about("blank"_string); }
 inline URL about_srcdoc() { return URL::about("srcdoc"_string); }
-
 inline URL about_error() { return URL::about("error"_string); }
-inline URL about_newtab() { return URL::about("newtab"_string); }
-inline URL about_bookmarks() { return URL::about("bookmarks"_string); }
-inline URL about_processes() { return URL::about("processes"_string); }
-inline URL about_settings() { return URL::about("settings"_string); }
-inline URL about_version() { return URL::about("version"_string); }
-
-inline bool is_webui_url(URL const& url)
-{
-    return first_is_one_of(url, about_bookmarks(), about_processes(), about_settings(), about_version());
-}
 
 }
 

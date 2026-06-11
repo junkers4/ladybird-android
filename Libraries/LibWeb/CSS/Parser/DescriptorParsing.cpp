@@ -22,12 +22,19 @@
 
 namespace Web::CSS::Parser {
 
+static FlyString descriptor_name_to_fly_string(DescriptorNameAndID const& descriptor_name_and_id)
+{
+    auto descriptor_name = descriptor_name_and_id.name().to_utf16_string();
+    auto descriptor_name_utf8 = descriptor_name.to_utf8_but_should_be_ported_to_utf16();
+    return MUST(FlyString::from_utf8(descriptor_name_utf8.bytes_as_string_view()));
+}
+
 Parser::ParseErrorOr<NonnullRefPtr<StyleValue const>> Parser::parse_descriptor_value(AtRuleID at_rule_id, DescriptorNameAndID const& descriptor_name_and_id, TokenStream<ComponentValue>& tokens)
 {
     if (!at_rule_supports_descriptor(at_rule_id, descriptor_name_and_id.id())) {
         ErrorReporter::the().report(UnknownPropertyError {
             .rule_name = to_string(at_rule_id),
-            .property_name = descriptor_name_and_id.name(),
+            .property_name = descriptor_name_to_fly_string(descriptor_name_and_id),
         });
         return ParseError::SyntaxError;
     }
@@ -60,8 +67,10 @@ Parser::ParseErrorOr<NonnullRefPtr<StyleValue const>> Parser::parse_descriptor_v
         // NB: Since we are not in a property value context we only allow ASFs if they are explicitly allowed in
         //     Descriptors.json
         if (!metadata.allow_arbitrary_substitution_functions) {
+            auto descriptor_name = descriptor_name_to_fly_string(descriptor_name_and_id);
+            auto value_type = MUST(String::formatted("{}/{}", to_string(at_rule_id), descriptor_name));
             ErrorReporter::the().report(InvalidValueError {
-                .value_type = MUST(String::formatted("{}/{}", to_string(at_rule_id), descriptor_name_and_id.name())),
+                .value_type = MUST(FlyString::from_utf8(value_type.bytes_as_string_view())),
                 .value_string = tokens.dump_string(),
                 .description = "ASFs are not supported in this descriptor"_string,
             });
@@ -197,7 +206,7 @@ Parser::ParseErrorOr<NonnullRefPtr<StyleValue const>> Parser::parse_descriptor_v
 
                     return parse_comma_separated_value_list(tokens, [&](TokenStream<ComponentValue>& tokens) -> RefPtr<StyleValue const> {
                         auto const parse_value = [&]() -> RefPtr<StyleValue const> {
-                            if (auto keyword_value = parse_keyword_value(tokens); keyword_value && keyword_value->to_keyword() == Keyword::Infinite)
+                            if (auto keyword_value = parse_specific_keyword_value(tokens, { { Keyword::Infinite } }))
                                 return keyword_value;
 
                             if (auto integer_value = parse_integer_value(tokens, infinite_integer_range); integer_value)
@@ -293,25 +302,13 @@ Parser::ParseErrorOr<NonnullRefPtr<StyleValue const>> Parser::parse_descriptor_v
                 }
                 case DescriptorMetadata::ValueType::FontWeightAbsolutePair: {
                     // <font-weight-absolute>{1,2}
-                    // <font-weight-absolute> = [ normal | bold | <number [1,1000]> ]
-                    // This is the same as the font-weight property, twice, without 'lighter' or 'bolder'.
-                    auto parse_absolute_font_weight = [&] -> RefPtr<StyleValue const> {
-                        auto value_for_property = parse_css_value_for_property(PropertyID::FontWeight, tokens);
-                        if (!value_for_property)
-                            return nullptr;
-                        if (value_for_property->is_css_wide_keyword() || value_for_property->is_unresolved())
-                            return nullptr;
-                        if (first_is_one_of(value_for_property->to_keyword(), Keyword::Lighter, Keyword::Bolder))
-                            return nullptr;
-                        return value_for_property;
-                    };
-                    auto first = parse_absolute_font_weight();
+                    auto first = parse_font_weight_absolute_value(tokens);
                     if (!first)
                         return nullptr;
                     tokens.discard_whitespace();
                     if (!tokens.has_next_token())
                         return StyleValueList::create({ first.release_nonnull() }, StyleValueList::Separator::Space);
-                    auto second = parse_absolute_font_weight();
+                    auto second = parse_font_weight_absolute_value(tokens);
                     if (!second)
                         return nullptr;
                     return StyleValueList::create({ first.release_nonnull(), second.release_nonnull() }, StyleValueList::Separator::Space);
@@ -435,7 +432,7 @@ Parser::ParseErrorOr<NonnullRefPtr<StyleValue const>> Parser::parse_descriptor_v
 
     ErrorReporter::the().report(InvalidPropertyError {
         .rule_name = to_string(at_rule_id),
-        .property_name = descriptor_name_and_id.name(),
+        .property_name = descriptor_name_to_fly_string(descriptor_name_and_id),
         .value_string = tokens.dump_string(),
         .description = "Failed to parse."_string,
     });
@@ -445,7 +442,7 @@ Parser::ParseErrorOr<NonnullRefPtr<StyleValue const>> Parser::parse_descriptor_v
 
 Optional<Descriptor> Parser::convert_to_descriptor(AtRuleID at_rule_id, Declaration const& declaration)
 {
-    auto descriptor_name_and_id = DescriptorNameAndID::from_name(at_rule_id, declaration.name);
+    auto descriptor_name_and_id = DescriptorNameAndID::from_name(at_rule_id, Utf16FlyString::from_utf8(declaration.name));
     if (!descriptor_name_and_id.has_value())
         return {};
 

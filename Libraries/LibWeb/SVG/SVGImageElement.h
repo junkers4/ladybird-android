@@ -33,14 +33,14 @@ public:
 
     Gfx::FloatRect bounding_box() const;
 
-    virtual RefPtr<Gfx::ImmutableBitmap> default_image_bitmap_sized(Gfx::IntSize) const override;
+    virtual Optional<Gfx::DecodedImageFrame> default_image_frame_sized(Gfx::IntSize) const override;
 
     // ^Layout::ImageProvider
     virtual bool is_image_available() const override;
     virtual Optional<CSSPixels> intrinsic_width() const override;
     virtual Optional<CSSPixels> intrinsic_height() const override;
     virtual Optional<CSSPixelFraction> intrinsic_aspect_ratio() const override;
-    virtual RefPtr<Gfx::ImmutableBitmap> current_image_bitmap_sized(Gfx::IntSize) const override;
+    virtual Optional<Gfx::DecodedImageFrame> current_image_frame_sized(Gfx::IntSize) const override;
     virtual void set_visible_in_viewport(bool) override { }
     virtual GC::Ptr<DOM::Element const> to_html_element() const override { return *this; }
     virtual size_t current_frame_index() const override { return m_current_frame_index; }
@@ -51,12 +51,13 @@ protected:
 
     virtual void initialize(JS::Realm&) override;
     virtual void visit_edges(Cell::Visitor&) override;
+    virtual void adopted_from(DOM::Document&) override;
 
     void process_the_url(Optional<String> const& href);
     void fetch_the_document(URL::URL const& url);
 
 private:
-    virtual GC::Ptr<Layout::Node> create_layout_node(GC::Ref<CSS::ComputedProperties>) override;
+    virtual RefPtr<Layout::Node> create_layout_node(CSS::ComputedProperties const&) override;
     void animate();
 
     GC::Ptr<SVG::SVGAnimatedLength> m_x;

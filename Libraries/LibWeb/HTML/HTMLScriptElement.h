@@ -65,7 +65,7 @@ public:
     TrustedTypes::TrustedScriptURLOrString src() const;
     WebIDL::ExceptionOr<void> set_src(TrustedTypes::TrustedScriptURLOrString);
 
-    Variant<GC::Root<TrustedTypes::TrustedScript>, Utf16String, Empty> text_content() const;
+    Variant<GC::Ref<TrustedTypes::TrustedScript>, Utf16String, Empty> text_content() const;
     WebIDL::ExceptionOr<void> set_text_content(TrustedTypes::NullableTrustedScriptOrString);
 
     TrustedTypes::TrustedScriptOrString inner_text();
@@ -89,6 +89,7 @@ private:
 
     virtual void initialize(JS::Realm&) override;
     virtual void visit_edges(Cell::Visitor&) override;
+    virtual void adopted_from(DOM::Document&) override;
 
     virtual void attribute_changed(FlyString const& name, Optional<String> const& old_value, Optional<String> const& value, Optional<FlyString> const& namespace_) override;
 

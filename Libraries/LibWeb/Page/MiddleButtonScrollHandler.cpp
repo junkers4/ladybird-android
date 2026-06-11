@@ -25,13 +25,15 @@ MiddleButtonScrollHandler::MiddleButtonScrollHandler(DOM::Element& container, CS
     , m_origin(origin)
     , m_mouse_position(origin)
 {
-    if (auto* paintable = m_container_element->document().paintable())
+    if (auto paintable = m_container_element->document().paintable())
         paintable->set_needs_repaint();
 }
 
 MiddleButtonScrollHandler::~MiddleButtonScrollHandler()
 {
-    if (auto* paintable = m_container_element->document().paintable())
+    if (!m_container_element->document().layout_is_up_to_date())
+        return;
+    if (auto paintable = m_container_element->document().paintable())
         paintable->set_needs_repaint();
 }
 

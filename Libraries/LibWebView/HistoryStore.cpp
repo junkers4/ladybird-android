@@ -8,6 +8,7 @@
 #include <AK/QuickSort.h>
 #include <AK/Utf8View.h>
 #include <LibDatabase/Database.h>
+#include <LibURL/Parser.h>
 #include <LibURL/URL.h>
 #include <LibWebView/HistoryDebug.h>
 #include <LibWebView/HistoryStore.h>
@@ -213,28 +214,60 @@ ErrorOr<NonnullOwnPtr<HistoryStore>> HistoryStore::create(Database::Database& da
             url ASC
         LIMIT ?4;
     )#"sv));
-    statements.clear_entries = TRY(database.prepare_statement("DELETE FROM History;"sv));
+    statements.list_entries = TRY(database.prepare_statement(R"#(
+        SELECT url, title, visit_count, last_visited_time, favicon
+        FROM (
+            SELECT
+                url,
+                title,
+                visit_count,
+                last_visited_time,
+                COALESCE(favicon, '') AS favicon,
+                CASE
+                    WHEN LOWER(CASE
+                        WHEN INSTR(url, '://') > 0 THEN SUBSTR(url, INSTR(url, '://') + 3)
+                        ELSE url
+                    END) LIKE 'www.%'
+                    THEN SUBSTR(CASE
+                        WHEN INSTR(url, '://') > 0 THEN SUBSTR(url, INSTR(url, '://') + 3)
+                        ELSE url
+                    END, 5)
+                    ELSE CASE
+                        WHEN INSTR(url, '://') > 0 THEN SUBSTR(url, INSTR(url, '://') + 3)
+                        ELSE url
+                    END
+                END AS searchable_url
+            FROM History
+        )
+        WHERE ((?1 = '' AND ?2 = '')
+            OR (?1 != '' AND INSTR(LOWER(title), LOWER(?1)) > 0)
+            OR (?2 != '' AND INSTR(LOWER(searchable_url), LOWER(?2)) > 0))
+        ORDER BY last_visited_time DESC, url ASC
+        LIMIT ?3 OFFSET ?4;
+    )#"sv));
+    statements.delete_entry = TRY(database.prepare_statement("DELETE FROM History WHERE url = ?;"sv));
     statements.delete_entries_accessed_since = TRY(database.prepare_statement("DELETE FROM History WHERE last_visited_time >= ?;"sv));
+    statements.all_urls = TRY(database.prepare_statement("SELECT url FROM History;"sv));
 
-    return adopt_own(*new HistoryStore { PersistedStorage { database, statements } });
+    return adopt_own(*new HistoryStore { adopt_own<StorageImpl>(*new PersistedStorage { database, move(statements) }) });
 }
 
 NonnullOwnPtr<HistoryStore> HistoryStore::create()
 {
     dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] Opening transient history store");
 
-    return adopt_own(*new HistoryStore { OptionalNone {} });
+    return adopt_own(*new HistoryStore { adopt_own<StorageImpl>(*new TransientStorage {}) });
 }
 
 NonnullOwnPtr<HistoryStore> HistoryStore::create_disabled()
 {
     dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] Opening disabled history store");
 
-    return adopt_own(*new HistoryStore { OptionalNone {}, true });
+    return adopt_own(*new HistoryStore { adopt_own<StorageImpl>(*new TransientStorage {}), true });
 }
 
-HistoryStore::HistoryStore(Optional<PersistedStorage> persisted_storage, bool is_disabled)
-    : m_persisted_storage(move(persisted_storage))
+HistoryStore::HistoryStore(NonnullOwnPtr<StorageImpl>&& storage, bool is_disabled)
+    : m_storage(move(storage))
     , m_is_disabled(is_disabled)
 {
 }
@@ -272,15 +305,12 @@ void HistoryStore::record_visit(URL::URL const& url, Optional<String> title, Uni
         return;
 
     dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] Recording visit in {} store: url='{}' title='{}' visited_at={}",
-        m_persisted_storage.has_value() ? "SQL"sv : "transient"sv,
+        m_storage->name(),
         *normalized_url,
         title.has_value() ? title->bytes_as_string_view() : "<none>"sv,
         visited_at.seconds_since_epoch());
 
-    if (m_persisted_storage.has_value())
-        m_persisted_storage->record_visit(*normalized_url, title, visited_at);
-    else
-        m_transient_storage.record_visit(normalized_url.release_value(), move(title), visited_at);
+    m_storage->record_visit(*normalized_url, title, visited_at);
 }
 
 void HistoryStore::update_title(URL::URL const& url, String const& title)
@@ -298,14 +328,11 @@ void HistoryStore::update_title(URL::URL const& url, String const& title)
         return;
 
     dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] Updating history title in {} store: url='{}' title='{}'",
-        m_persisted_storage.has_value() ? "SQL"sv : "transient"sv,
+        m_storage->name(),
         *normalized_url,
         title);
 
-    if (m_persisted_storage.has_value())
-        m_persisted_storage->update_title(*normalized_url, title);
-    else
-        m_transient_storage.update_title(*normalized_url, title);
+    m_storage->update_title(*normalized_url, title);
 }
 
 void HistoryStore::update_favicon(URL::URL const& url, String const& favicon_base64_png)
@@ -320,14 +347,58 @@ void HistoryStore::update_favicon(URL::URL const& url, String const& favicon_bas
         return;
 
     dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] Updating history favicon in {} store: url='{}' bytes={}",
-        m_persisted_storage.has_value() ? "SQL"sv : "transient"sv,
+        m_storage->name(),
         *normalized_url,
         favicon_base64_png.bytes().size());
 
-    if (m_persisted_storage.has_value())
-        m_persisted_storage->update_favicon(*normalized_url, favicon_base64_png);
-    else
-        m_transient_storage.update_favicon(*normalized_url, favicon_base64_png);
+    m_storage->update_favicon(*normalized_url, favicon_base64_png);
+}
+
+void HistoryStore::record_closed_tab(URL::URL const& url, UnixDateTime closed_at)
+{
+    m_recently_closed_entries.empend(RecentlyClosedEntry {
+        .urls = { url },
+        .was_window = false,
+        .active_tab_index = 0,
+        .closed_time = closed_at,
+    });
+}
+
+void HistoryStore::record_closed_window(Vector<URL::URL> urls, size_t active_tab_index, UnixDateTime closed_at)
+{
+    if (urls.is_empty())
+        return;
+
+    m_recently_closed_entries.empend(RecentlyClosedEntry {
+        .urls = move(urls),
+        .was_window = true,
+        .active_tab_index = 0,
+        .closed_time = closed_at,
+    });
+
+    auto& entry = m_recently_closed_entries.last();
+    entry.active_tab_index = active_tab_index < entry.urls.size() ? active_tab_index : entry.urls.size() - 1;
+}
+
+bool HistoryStore::has_recently_closed_entries() const
+{
+    return !m_recently_closed_entries.is_empty();
+}
+
+Optional<RecentlyClosedEntry const&> HistoryStore::most_recently_closed_entry() const
+{
+    if (m_recently_closed_entries.is_empty())
+        return {};
+
+    return m_recently_closed_entries.last();
+}
+
+Optional<RecentlyClosedEntry> HistoryStore::pop_most_recently_closed_entry()
+{
+    if (m_recently_closed_entries.is_empty())
+        return {};
+
+    return m_recently_closed_entries.take_last();
 }
 
 Optional<HistoryEntry> HistoryStore::entry_for_url(URL::URL const& url)
@@ -339,9 +410,7 @@ Optional<HistoryEntry> HistoryStore::entry_for_url(URL::URL const& url)
     if (!normalized_url.has_value())
         return {};
 
-    auto entry = m_persisted_storage.has_value()
-        ? m_persisted_storage->entry_for_url(*normalized_url)
-        : m_transient_storage.entry_for_url(*normalized_url);
+    auto entry = m_storage->entry_for_url(*normalized_url);
 
     if (entry.has_value()) {
         dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] Found history entry for '{}': title='{}' visits={} last_visited={} has_favicon={}",
@@ -371,12 +440,10 @@ Vector<HistoryEntry> HistoryStore::autocomplete_entries(StringView query, size_t
     auto title_query = autocomplete_title_query(trimmed_query);
     auto url_query = autocomplete_url_query(trimmed_query);
 
-    auto entries = m_persisted_storage.has_value()
-        ? m_persisted_storage->autocomplete_entries(title_query, url_query, limit)
-        : m_transient_storage.autocomplete_entries(title_query, url_query, limit);
+    auto entries = m_storage->autocomplete_entries(title_query, url_query, limit);
 
     dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] {} history autocomplete suggestions for '{}' (title_query='{}', url_query='{}', limit={}): {}",
-        m_persisted_storage.has_value() ? "SQL"sv : "Transient"sv,
+        m_storage->name(),
         trimmed_query,
         title_query,
         url_query,
@@ -386,16 +453,85 @@ Vector<HistoryEntry> HistoryStore::autocomplete_entries(StringView query, size_t
     return entries;
 }
 
-void HistoryStore::clear()
+Vector<HistoryEntry> HistoryStore::list_entries(StringView query, size_t offset, size_t limit)
+{
+    if (m_is_disabled || limit == 0)
+        return {};
+
+    auto title_query = query.trim_whitespace();
+    auto url_query = autocomplete_url_query(title_query);
+
+    auto entries = m_storage->list_entries(title_query, url_query, offset, limit);
+
+    dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] {} history page entries for '{}' (title_query='{}', url_query='{}', offset={}, limit={}): {}",
+        m_storage->name(),
+        title_query,
+        title_query,
+        url_query,
+        offset,
+        limit,
+        log_history_entries(entries));
+
+    return entries;
+}
+
+void HistoryStore::remove_entry_for_url(URL::URL const& url)
 {
     if (m_is_disabled)
         return;
 
-    dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] Clearing {} history store", m_persisted_storage.has_value() ? "SQL"sv : "transient"sv);
-    if (m_persisted_storage.has_value())
-        m_persisted_storage->clear();
-    else
-        m_transient_storage.clear();
+    auto normalized_url = normalize_url(url);
+    if (!normalized_url.has_value())
+        return;
+
+    dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] Removing history entry for '{}'", *normalized_url);
+    m_storage->remove_entry_for_url(*normalized_url);
+}
+
+static Optional<String> site_key_for_history_entry(URL::URL const& url)
+{
+    if (!url.host().has_value() || url.host()->is_empty_host())
+        return {};
+
+    if (auto registrable_domain = url.host()->registrable_domain(); registrable_domain.has_value())
+        return registrable_domain.release_value();
+
+    return url.serialized_host();
+}
+
+static bool history_entry_matches_site_key(StringView entry_url, StringView site_key)
+{
+    auto parsed_url = URL::Parser::basic_parse(entry_url);
+    if (!parsed_url.has_value())
+        return false;
+
+    auto const& host = parsed_url->host();
+    if (!host.has_value() || host->is_empty_host())
+        return false;
+
+    auto serialized_host = parsed_url->serialized_host();
+    auto serialized_host_view = serialized_host.bytes_as_string_view();
+    if (serialized_host_view.equals_ignoring_ascii_case(site_key))
+        return true;
+
+    return serialized_host_view.length() > site_key.length()
+        && serialized_host_view.ends_with(site_key, CaseSensitivity::CaseInsensitive)
+        && serialized_host_view[serialized_host_view.length() - site_key.length() - 1] == '.';
+}
+
+void HistoryStore::remove_entries_for_same_site(URL::URL const& url)
+{
+    if (m_is_disabled)
+        return;
+
+    auto site_key = site_key_for_history_entry(url);
+    if (!site_key.has_value()) {
+        remove_entry_for_url(url);
+        return;
+    }
+
+    dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] Removing history entries for site '{}'", *site_key);
+    m_storage->remove_entries_for_same_site(*site_key);
 }
 
 void HistoryStore::remove_entries_accessed_since(UnixDateTime since)
@@ -404,15 +540,15 @@ void HistoryStore::remove_entries_accessed_since(UnixDateTime since)
         return;
 
     dbgln_if(WEBVIEW_HISTORY_DEBUG, "[History] Removing {} history entries accessed since {}",
-        m_persisted_storage.has_value() ? "SQL"sv : "transient"sv,
+        m_storage->name(),
         since.seconds_since_epoch());
-    if (m_persisted_storage.has_value())
-        m_persisted_storage->remove_entries_accessed_since(since);
-    else
-        m_transient_storage.remove_entries_accessed_since(since);
+    m_storage->remove_entries_accessed_since(since);
+    m_recently_closed_entries.remove_all_matching([&](auto const& entry) {
+        return entry.closed_time >= since;
+    });
 }
 
-void HistoryStore::TransientStorage::record_visit(String url, Optional<String> title, UnixDateTime visited_at)
+void HistoryStore::TransientStorage::record_visit(String const& url, Optional<String> const& title, UnixDateTime visited_at)
 {
     auto entry = m_entries.find(url);
     if (entry == m_entries.end()) {
@@ -435,7 +571,7 @@ void HistoryStore::TransientStorage::record_visit(String url, Optional<String> t
         entry->value.title = move(title);
 }
 
-void HistoryStore::TransientStorage::update_title(String const& url, String title)
+void HistoryStore::TransientStorage::update_title(String const& url, String const& title)
 {
     auto entry = m_entries.find(url);
     if (entry == m_entries.end())
@@ -444,7 +580,7 @@ void HistoryStore::TransientStorage::update_title(String const& url, String titl
     entry->value.title = move(title);
 }
 
-void HistoryStore::TransientStorage::update_favicon(String const& url, String favicon_base64_png)
+void HistoryStore::TransientStorage::update_favicon(String const& url, String const& favicon_base64_png)
 {
     auto entry = m_entries.find(url);
     if (entry == m_entries.end())
@@ -482,9 +618,63 @@ Vector<HistoryEntry> HistoryStore::TransientStorage::autocomplete_entries(String
     return entries;
 }
 
-void HistoryStore::TransientStorage::clear()
+static bool matches_history_page_query(HistoryEntry const& entry, StringView title_query, StringView url_query)
 {
-    m_entries.clear();
+    if (title_query.is_empty() && url_query.is_empty())
+        return true;
+
+    auto searchable_url = autocomplete_searchable_url(entry.url.bytes_as_string_view());
+    if (!url_query.is_empty() && searchable_url.contains(url_query, CaseSensitivity::CaseInsensitive))
+        return true;
+
+    return !title_query.is_empty()
+        && entry.title.has_value()
+        && entry.title->contains(title_query, CaseSensitivity::CaseInsensitive);
+}
+
+static void sort_entries_for_history_page(Vector<HistoryEntry const*>& matches)
+{
+    quick_sort(matches, [](auto const* left, auto const* right) {
+        if (left->last_visited_time != right->last_visited_time)
+            return left->last_visited_time > right->last_visited_time;
+        return left->url < right->url;
+    });
+}
+
+Vector<HistoryEntry> HistoryStore::TransientStorage::list_entries(StringView title_query, StringView url_query, size_t offset, size_t limit)
+{
+    Vector<HistoryEntry const*> matches;
+
+    for (auto const& entry : m_entries) {
+        if (matches_history_page_query(entry.value, title_query, url_query))
+            matches.append(&entry.value);
+    }
+
+    sort_entries_for_history_page(matches);
+
+    Vector<HistoryEntry> entries;
+    if (offset >= matches.size())
+        return entries;
+
+    auto end = min(matches.size(), offset + limit);
+    entries.ensure_capacity(end - offset);
+
+    for (size_t i = offset; i < end; ++i)
+        entries.unchecked_append(*matches[i]);
+
+    return entries;
+}
+
+void HistoryStore::TransientStorage::remove_entry_for_url(String const& url)
+{
+    m_entries.remove(url);
+}
+
+void HistoryStore::TransientStorage::remove_entries_for_same_site(StringView site_key)
+{
+    m_entries.remove_all_matching([&](auto const&, auto const& entry) {
+        return history_entry_matches_site_key(entry.url, site_key);
+    });
 }
 
 void HistoryStore::TransientStorage::remove_entries_accessed_since(UnixDateTime since)
@@ -494,10 +684,18 @@ void HistoryStore::TransientStorage::remove_entries_accessed_since(UnixDateTime 
     });
 }
 
+HistoryStore::PersistedStorage::PersistedStorage(Database::Database& database, Statements&& statements)
+    : m_database(database)
+    , m_statements(move(statements))
+{
+}
+
+HistoryStore::PersistedStorage::~PersistedStorage() = default;
+
 void HistoryStore::PersistedStorage::record_visit(String const& url, Optional<String> const& title, UnixDateTime visited_at)
 {
-    database.execute_statement(
-        statements.upsert_entry,
+    m_database.execute_statement(
+        m_statements.upsert_entry,
         {},
         url,
         title.value_or(String {}),
@@ -506,8 +704,8 @@ void HistoryStore::PersistedStorage::record_visit(String const& url, Optional<St
 
 void HistoryStore::PersistedStorage::update_title(String const& url, String const& title)
 {
-    database.execute_statement(
-        statements.update_title,
+    m_database.execute_statement(
+        m_statements.update_title,
         {},
         title,
         url);
@@ -515,8 +713,8 @@ void HistoryStore::PersistedStorage::update_title(String const& url, String cons
 
 void HistoryStore::PersistedStorage::update_favicon(String const& url, String const& favicon_base64_png)
 {
-    database.execute_statement(
-        statements.update_favicon,
+    m_database.execute_statement(
+        m_statements.update_favicon,
         {},
         favicon_base64_png,
         url);
@@ -526,18 +724,18 @@ Optional<HistoryEntry> HistoryStore::PersistedStorage::entry_for_url(String cons
 {
     Optional<HistoryEntry> entry;
 
-    database.execute_statement(
-        statements.get_entry,
+    m_database.execute_statement(
+        m_statements.get_entry,
         [&](auto statement_id) {
-            auto title = database.result_column<String>(statement_id, 0);
-            auto favicon = database.result_column<String>(statement_id, 3);
+            auto title = m_database.result_column<String>(statement_id, 0);
+            auto favicon = m_database.result_column<String>(statement_id, 3);
 
             entry = HistoryEntry {
                 .url = url,
                 .title = title.is_empty() ? Optional<String> {} : Optional<String> { move(title) },
                 .favicon_base64_png = favicon.is_empty() ? Optional<String> {} : Optional<String> { move(favicon) },
-                .visit_count = database.result_column<u64>(statement_id, 1),
-                .last_visited_time = database.result_column<UnixDateTime>(statement_id, 2),
+                .visit_count = m_database.result_column<u64>(statement_id, 1),
+                .last_visited_time = m_database.result_column<UnixDateTime>(statement_id, 2),
             };
         },
         url);
@@ -553,18 +751,18 @@ Vector<HistoryEntry> HistoryStore::PersistedStorage::autocomplete_entries(String
     auto title_query_string = MUST(String::from_utf8(title_query));
     auto url_contains_query_string = MUST(String::from_utf8(autocomplete_url_contains_query(url_query)));
 
-    database.execute_statement(
-        statements.search_entries,
+    m_database.execute_statement(
+        m_statements.search_entries,
         [&](auto statement_id) {
-            auto title = database.result_column<String>(statement_id, 1);
-            auto favicon = database.result_column<String>(statement_id, 4);
+            auto title = m_database.result_column<String>(statement_id, 1);
+            auto favicon = m_database.result_column<String>(statement_id, 4);
 
             entries.append(HistoryEntry {
-                .url = database.result_column<String>(statement_id, 0),
+                .url = m_database.result_column<String>(statement_id, 0),
                 .title = title.is_empty() ? Optional<String> {} : Optional<String> { move(title) },
                 .favicon_base64_png = favicon.is_empty() ? Optional<String> {} : Optional<String> { move(favicon) },
-                .visit_count = database.result_column<u64>(statement_id, 2),
-                .last_visited_time = database.result_column<UnixDateTime>(statement_id, 3),
+                .visit_count = m_database.result_column<u64>(statement_id, 2),
+                .last_visited_time = m_database.result_column<UnixDateTime>(statement_id, 3),
             });
         },
         url_query_string,
@@ -575,14 +773,59 @@ Vector<HistoryEntry> HistoryStore::PersistedStorage::autocomplete_entries(String
     return entries;
 }
 
-void HistoryStore::PersistedStorage::clear()
+Vector<HistoryEntry> HistoryStore::PersistedStorage::list_entries(StringView title_query, StringView url_query, size_t offset, size_t limit)
 {
-    database.execute_statement(statements.clear_entries, {});
+    Vector<HistoryEntry> entries;
+    entries.ensure_capacity(limit);
+    auto title_query_string = MUST(String::from_utf8(title_query));
+    auto url_query_string = MUST(String::from_utf8(url_query));
+
+    m_database.execute_statement(
+        m_statements.list_entries,
+        [&](auto statement_id) {
+            auto title = m_database.result_column<String>(statement_id, 1);
+            auto favicon = m_database.result_column<String>(statement_id, 4);
+
+            entries.append(HistoryEntry {
+                .url = m_database.result_column<String>(statement_id, 0),
+                .title = title.is_empty() ? Optional<String> {} : Optional<String> { move(title) },
+                .favicon_base64_png = favicon.is_empty() ? Optional<String> {} : Optional<String> { move(favicon) },
+                .visit_count = m_database.result_column<u64>(statement_id, 2),
+                .last_visited_time = m_database.result_column<UnixDateTime>(statement_id, 3),
+            });
+        },
+        title_query_string,
+        url_query_string,
+        static_cast<i64>(limit),
+        static_cast<i64>(offset));
+
+    return entries;
+}
+
+void HistoryStore::PersistedStorage::remove_entry_for_url(String const& url)
+{
+    m_database.execute_statement(m_statements.delete_entry, {}, url);
+}
+
+void HistoryStore::PersistedStorage::remove_entries_for_same_site(StringView site_key)
+{
+    Vector<String> urls_to_remove;
+
+    m_database.execute_statement(
+        m_statements.all_urls,
+        [&](auto statement_id) {
+            auto url = m_database.result_column<String>(statement_id, 0);
+            if (history_entry_matches_site_key(url.bytes_as_string_view(), site_key))
+                urls_to_remove.append(move(url));
+        });
+
+    for (auto const& url : urls_to_remove)
+        remove_entry_for_url(url);
 }
 
 void HistoryStore::PersistedStorage::remove_entries_accessed_since(UnixDateTime since)
 {
-    database.execute_statement(statements.delete_entries_accessed_since, {}, since);
+    m_database.execute_statement(m_statements.delete_entries_accessed_since, {}, since);
 }
 
 }

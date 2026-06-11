@@ -6,17 +6,21 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <LibJS/Runtime/ExternalMemory.h>
 #include <LibURL/Parser.h>
 #include <LibWeb/Bindings/CSSStyleSheet.h>
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/CSS/CSSCounterStyleRule.h>
 #include <LibWeb/CSS/CSSImportRule.h>
 #include <LibWeb/CSS/CSSKeyframesRule.h>
+#include <LibWeb/CSS/CSSNestedDeclarations.h>
+#include <LibWeb/CSS/CSSScopeRule.h>
 #include <LibWeb/CSS/CSSStyleRule.h>
 #include <LibWeb/CSS/CSSStyleSheet.h>
 #include <LibWeb/CSS/FontComputer.h>
 #include <LibWeb/CSS/Parser/Parser.h>
 #include <LibWeb/CSS/StyleComputer.h>
+#include <LibWeb/CSS/StyleScope.h>
 #include <LibWeb/CSS/StyleSheetInvalidation.h>
 #include <LibWeb/CSS/StyleSheetList.h>
 #include <LibWeb/DOM/Document.h>
@@ -37,7 +41,7 @@ GC::Ref<CSSStyleSheet> CSSStyleSheet::create(JS::Realm& realm, CSSRuleList& rule
 }
 
 // https://drafts.csswg.org/cssom/#dom-cssstylesheet-cssstylesheet
-WebIDL::ExceptionOr<GC::Ref<CSSStyleSheet>> CSSStyleSheet::construct_impl(JS::Realm& realm, Optional<CSSStyleSheetInit> const& options)
+WebIDL::ExceptionOr<GC::Ref<CSSStyleSheet>> CSSStyleSheet::construct_impl(JS::Realm& realm, Optional<Bindings::CSSStyleSheetInit> const& options)
 {
     // 1. Construct a new CSSStyleSheet object sheet.
     auto sheet = create(realm, CSSRuleList::create(realm), CSS::MediaList::create(realm, {}), {});
@@ -90,7 +94,7 @@ WebIDL::ExceptionOr<GC::Ref<CSSStyleSheet>> CSSStyleSheet::construct_impl(JS::Re
         if (options->media.has<String>()) {
             sheet->set_media(options->media.get<String>());
         } else {
-            sheet->m_media = *options->media.get<GC::Root<MediaList>>();
+            sheet->m_media = *options->media.get<GC::Ref<MediaList>>();
         }
     }
 
@@ -119,6 +123,8 @@ CSSStyleSheet::CSSStyleSheet(JS::Realm& realm, CSSRuleList& rules, MediaList& me
     };
 }
 
+CSSStyleSheet::~CSSStyleSheet() = default;
+
 void CSSStyleSheet::initialize(JS::Realm& realm)
 {
     WEB_SET_PROTOTYPE_FOR_INTERFACE(CSSStyleSheet);
@@ -135,8 +141,23 @@ void CSSStyleSheet::visit_edges(Cell::Visitor& visitor)
     visitor.visit(m_namespace_rules);
     visitor.visit(m_import_rules);
     visitor.visit(m_owning_documents_or_shadow_roots);
+    if (m_shared_single_constructed_sheet_style_cache)
+        m_shared_single_constructed_sheet_style_cache->visit_edges(visitor);
     for (auto& subresource : m_critical_subresources)
         subresource.visit_edges(visitor);
+}
+
+size_t CSSStyleSheet::external_memory_size() const
+{
+    auto size = Base::external_memory_size();
+    if (m_source_text.has_value())
+        size = JS::saturating_add_external_memory_size(size, JS::string_external_memory_size(*m_source_text));
+    size = JS::saturating_add_external_memory_size(size, JS::hash_map_external_memory_size(m_namespace_rules));
+    size = JS::saturating_add_external_memory_size(size, JS::vector_external_memory_size(m_import_rules));
+    size = JS::saturating_add_external_memory_size(size, JS::hash_table_external_memory_size(m_owning_documents_or_shadow_roots));
+    size = JS::saturating_add_external_memory_size(size, JS::vector_external_memory_size(m_critical_subresources));
+    size = JS::saturating_add_external_memory_size(size, JS::vector_external_memory_size(m_pending_image_values));
+    return size;
 }
 
 // https://www.w3.org/TR/cssom/#dom-cssstylesheet-insertrule
@@ -226,7 +247,7 @@ GC::Ref<WebIDL::Promise> CSSStyleSheet::replace(String text)
         auto rules = CSS::Parser::Parser::create(make_parsing_params(), text).parse_as_stylesheet_contents();
 
         // 2. If rules contains one or more @import rules, remove those rules from rules.
-        GC::RootVector<GC::Ref<CSSRule>> rules_without_import(realm.heap());
+        GC::RootVector<GC::Ref<CSSRule>> rules_without_import;
         for (auto rule : rules) {
             if (rule->type() != CSSRule::Type::Import)
                 rules_without_import.append(rule);
@@ -264,7 +285,7 @@ WebIDL::ExceptionOr<void> CSSStyleSheet::replace_sync(StringView text)
     auto rules = CSS::Parser::Parser::create(make_parsing_params(), text).parse_as_stylesheet_contents();
 
     // 3. If rules contains one or more @import rules, remove those rules from rules.
-    GC::RootVector<GC::Ref<CSSRule>> rules_without_import(realm().heap());
+    GC::RootVector<GC::Ref<CSSRule>> rules_without_import;
     for (auto rule : rules) {
         if (rule->type() != CSSRule::Type::Import)
             rules_without_import.append(rule);
@@ -417,54 +438,83 @@ void CSSStyleSheet::for_each_owning_style_scope(Function<void(StyleScope&)> cons
     }
 }
 
+NonnullRefPtr<StyleCache> CSSStyleSheet::shared_single_constructed_sheet_style_cache(StyleScope& style_scope)
+{
+    VERIFY(constructed());
+    if (!m_shared_single_constructed_sheet_style_cache)
+        m_shared_single_constructed_sheet_style_cache = StyleCache::create_for_style_scope(style_scope);
+    return *m_shared_single_constructed_sheet_style_cache;
+}
+
+void CSSStyleSheet::invalidate_shared_style_cache()
+{
+    m_selector_insights = {};
+    m_shared_single_constructed_sheet_style_cache = nullptr;
+
+    // Imported rules contribute to their parent sheet's effective rules.
+    if (auto* import_rule = as_if<CSSImportRule>(owner_rule().ptr())) {
+        if (auto* parent_style_sheet = import_rule->parent_style_sheet())
+            parent_style_sheet->invalidate_shared_style_cache();
+    }
+}
+
+SelectorInsights const& CSSStyleSheet::selector_insights() const
+{
+    if (m_selector_insights.has_value())
+        return *m_selector_insights;
+
+    SelectorInsights insights;
+    for_each_effective_rule(TraversalOrder::Preorder, [&](CSSRule const& rule) {
+        auto collect_selector_list = [&](SelectorList const& selectors) {
+            for (auto const& selector : selectors)
+                StyleScope::collect_selector_insights(selector, insights);
+        };
+        auto collect_optional_selector_list = [&](Optional<SelectorList> const& selectors) {
+            if (!selectors.has_value())
+                return;
+            collect_selector_list(*selectors);
+        };
+
+        if (rule.type() == CSSRule::Type::Scope) {
+            auto const& scope_rule = as<CSSScopeRule>(rule);
+            collect_optional_selector_list(scope_rule.start_selectors_for_matching());
+            collect_optional_selector_list(scope_rule.end_selectors_for_matching());
+            return;
+        }
+
+        if (rule.type() == CSSRule::Type::Import) {
+            auto const& import_rule = as<CSSImportRule>(rule);
+            if (import_rule.has_scope()) {
+                collect_optional_selector_list(import_rule.scope_start_selectors_for_matching());
+                collect_optional_selector_list(import_rule.scope_end_selectors_for_matching());
+            }
+            return;
+        }
+
+        if (rule.type() == CSSRule::Type::Style) {
+            collect_selector_list(static_cast<CSSStyleRule const&>(rule).absolutized_selectors());
+            return;
+        }
+
+        if (rule.type() == CSSRule::Type::NestedDeclarations)
+            collect_selector_list(static_cast<CSSNestedDeclarations const&>(rule).absolutized_selectors());
+    });
+    m_selector_insights = insights;
+    return *m_selector_insights;
+}
+
 void CSSStyleSheet::invalidate_owners(DOM::StyleInvalidationReason reason, ShadowRootStylesheetEffects const* previous_sheet_effects)
 {
     m_did_match = {};
+    invalidate_shared_style_cache();
 
-    for (auto& document_or_shadow_root : m_owning_documents_or_shadow_roots) {
-        auto& style_scope = document_or_shadow_root->is_shadow_root()
-            ? as<DOM::ShadowRoot>(*document_or_shadow_root).style_scope()
-            : document_or_shadow_root->document().style_scope();
+    // The MediaList may have been mutated (e.g. via MediaList::set_media_text), and owner invalidation computes
+    // shadow-root effects from effective rules. Refresh the media state first so host-side shadow invalidation
+    // sees the updated definitions.
+    if (auto document = owning_document())
+        evaluate_media_queries(*document);
 
-        style_scope.invalidate_rule_cache();
-        style_scope.node().invalidate_style(reason);
-
-        auto* shadow_root = as_if<DOM::ShadowRoot>(style_scope.node());
-        if (!shadow_root)
-            continue;
-
-        invalidate_assigned_elements_for_dirty_slots(*shadow_root);
-
-        auto* host = shadow_root->host();
-        if (!host)
-            continue;
-
-        auto effects = determine_shadow_root_stylesheet_effects(*shadow_root);
-        if (effects.may_match_light_dom_under_shadow_host && !effects.may_match_shadow_host) {
-            host->invalidate_style(reason);
-        } else if (effects.may_match_light_dom_under_shadow_host) {
-            host->root().invalidate_style(reason);
-        } else if (effects.may_affect_assigned_nodes_via_slots) {
-            host->invalidate_style(reason);
-        } else if (effects.may_match_shadow_host) {
-            host->invalidate_style(reason);
-            shadow_root->set_needs_style_update(true);
-        } else if (previous_sheet_effects) {
-            // `replaceSync("")`, `deleteRule()`, or disabling the last host-reaching rule can remove all evidence of
-            // host-side effects from the post-mutation stylesheet set. Fall back to the pre-mutation snapshot so the
-            // host side still gets the right invalidation.
-            if (previous_sheet_effects->may_match_light_dom_under_shadow_host && !previous_sheet_effects->may_match_shadow_host) {
-                host->invalidate_style(reason);
-            } else if (previous_sheet_effects->may_match_light_dom_under_shadow_host) {
-                host->root().invalidate_style(reason);
-            } else if (previous_sheet_effects->may_affect_assigned_nodes_via_slots) {
-                host->invalidate_style(reason);
-            } else if (previous_sheet_effects->may_match_shadow_host) {
-                host->invalidate_style(reason);
-                shadow_root->set_needs_style_update(true);
-            }
-        }
-    }
+    invalidate_style_for_style_sheet_owners(*this, reason, ShouldInvalidateRuleCache::Yes, previous_sheet_effects);
 }
 
 GC::Ptr<DOM::Document> CSSStyleSheet::owning_document() const
@@ -485,22 +535,43 @@ void CSSStyleSheet::load_pending_image_resources(DOM::Document& document)
 
     auto pending = move(m_pending_image_values);
     for (auto const& weak_image_value : pending) {
-        if (auto* image_value = weak_image_value.ptr())
+        if (auto* image_value = weak_image_value.ptr()) {
+            image_value->update_style_sheet_resource_context(*this);
             image_value->load_any_resources(document);
+        }
     }
 }
 
 bool CSSStyleSheet::evaluate_media_queries(DOM::Document const& document)
 {
+    return evaluate_media_queries(document, [](CSSRule const&) { });
+}
+
+bool CSSStyleSheet::evaluate_media_queries(DOM::Document const& document, Function<void(CSSRule const&)> const& changed_rule_callback)
+{
     bool any_media_queries_changed_match_state = false;
 
     bool now_matches = m_media->evaluate(document);
-    if (!m_did_match.has_value() || m_did_match.value() != now_matches)
+    // The first evaluation establishes the baseline. The sheet's rules already entered the cascade through
+    // StyleSheetListAddSheet, AdoptedStyleSheetsList, or invalidate_owners (each of which performs its own
+    // invalidation), so we don't need to also report a match-state change just because no prior result was
+    // recorded.
+    bool did_match_state_change = m_did_match.has_value() && m_did_match.value() != now_matches;
+    if (did_match_state_change)
         any_media_queries_changed_match_state = true;
-    if (now_matches && m_rules->evaluate_media_queries(document))
+    if (now_matches && m_rules->evaluate_media_queries(document, changed_rule_callback))
         any_media_queries_changed_match_state = true;
+    if (did_match_state_change) {
+        // Imported stylesheets can also have cascade effects through their owning @import rule itself, for example
+        // when a layered import's media gate starts or stops contributing its layer declaration.
+        if (auto rule = owner_rule())
+            changed_rule_callback(*rule);
+        m_rules->for_each_effective_rule(TraversalOrder::Preorder, changed_rule_callback);
+    }
 
     m_did_match = now_matches;
+    if (any_media_queries_changed_match_state)
+        invalidate_shared_style_cache();
 
     return any_media_queries_changed_match_state;
 }
@@ -534,6 +605,8 @@ Optional<FlyString> CSSStyleSheet::namespace_uri(StringView namespace_prefix) co
 
 void CSSStyleSheet::recalculate_rule_caches()
 {
+    invalidate_shared_style_cache();
+
     m_default_namespace_rule = nullptr;
     m_namespace_rules.clear();
     m_import_rules.clear();
@@ -570,16 +643,6 @@ void CSSStyleSheet::recalculate_rule_caches()
             return;
         }
     }
-}
-
-void CSSStyleSheet::set_source_text(String source)
-{
-    m_source_text = move(source);
-}
-
-Optional<String> CSSStyleSheet::source_text(Badge<DOM::Document>) const
-{
-    return m_source_text;
 }
 
 void CSSStyleSheet::add_critical_subresource(Subresource& subresource)
