@@ -13,7 +13,7 @@
     <color name="ladybird_background">#FFFFFFFF</color>
     <color name="ladybird_surface">#FFFFFFFF</color>
     <color name="ladybird_surface_variant">#FFF1F3F4</color>
-    <color name="ladybird_control_surface">#FFF1F3F4</color>
+    <color name="ladybird_control_surface">#FFE4E7EA</color>
     <color name="ladybird_field_surface">#FFF1F3F4</color>
 
     <color name="ladybird_on_surface">#FF1F1F1F</color>

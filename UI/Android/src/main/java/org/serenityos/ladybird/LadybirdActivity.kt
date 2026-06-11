@@ -77,6 +77,18 @@ class LadybirdActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setSupportActionBar(binding.toolbar)
+
+        // Edge-to-edge like Chromium: the page draws under the transparent
+        // gesture bar; only the app bar is inset below the status bar. The IME
+        // inset keeps the find bar/omnibox visible above the keyboard.
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { root, insets ->
+            val statusBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+            binding.appBar.setPadding(0, statusBars.top, 0, 0)
+            val ime = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())
+            root.setPadding(0, 0, 0, ime.bottom)
+            insets
+        }
         urlEditText = binding.urlEditText
         view = binding.webView
         startStartupOverlayAnimation()
@@ -180,6 +192,7 @@ class LadybirdActivity : AppCompatActivity() {
         // overlay if the user cancels without navigating.
         val ntpFocusHandler = View.OnClickListener {
             binding.newTabOverlay.visibility = View.GONE
+            binding.urlBarCard.visibility = View.VISIBLE
             enterOmniboxEditMode()
         }
         binding.ntpSearchPill.setOnClickListener(ntpFocusHandler)
@@ -285,7 +298,60 @@ class LadybirdActivity : AppCompatActivity() {
     }
 
     private fun updateNewTabOverlay(url: String) {
-        binding.newTabOverlay.visibility = if (isNewTabUrl(url)) View.VISIBLE else View.GONE
+        val onNtp = isNewTabUrl(url)
+        binding.newTabOverlay.visibility = if (onNtp) View.VISIBLE else View.GONE
+        // Vanadium hides the toolbar omnibox on the New Tab page — the big
+        // search pill in the content area takes its place. INVISIBLE (not
+        // GONE) keeps the toolbar buttons anchored to the edges.
+        binding.urlBarCard.visibility = if (onNtp && !urlEditText.hasFocus()) View.INVISIBLE else View.VISIBLE
+        if (onNtp) populateNtpShortcuts()
+    }
+
+    private fun populateNtpShortcuts() {
+        val container = binding.ntpShortcuts
+        container.removeAllViews()
+        // Most-visited first, then bookmarks as fallback; 4 tiles like Vanadium.
+        val rows = (history.all().map { it.url to it.title } + bookmarks.all().map { it.url to it.title })
+            .distinctBy { it.first }
+            .filterNot { isNewTabUrl(it.first) }
+            .take(4)
+        binding.ntpShortcutsCard.visibility = if (rows.isEmpty()) View.GONE else View.VISIBLE
+        val density = resources.displayMetrics.density
+        for ((url, title) in rows) {
+            val label = title.ifBlank { Uri.parse(url).host ?: url }
+            val tile = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+                layoutParams = android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { navigateToInput(url) }
+            }
+            val circle = android.widget.TextView(this).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams((52 * density).toInt(), (52 * density).toInt())
+                background = androidx.core.content.ContextCompat.getDrawable(this@LadybirdActivity, R.drawable.bg_ntp_tile)
+                gravity = android.view.Gravity.CENTER
+                text = label.trim().take(1).uppercase()
+                setTextColor(androidx.core.content.ContextCompat.getColor(this@LadybirdActivity, R.color.ladybird_on_surface))
+                textSize = 20f
+            }
+            val caption = android.widget.TextView(this).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = (8 * density).toInt() }
+                gravity = android.view.Gravity.CENTER
+                text = label
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                maxWidth = (76 * density).toInt()
+                setTextColor(androidx.core.content.ContextCompat.getColor(this@LadybirdActivity, R.color.ladybird_on_surface_muted))
+                textSize = 12f
+            }
+            tile.addView(circle)
+            tile.addView(caption)
+            container.addView(tile)
+        }
     }
 
     private fun injectGoogleSorryPageFixesIfNeeded(url: String) {
@@ -439,29 +505,32 @@ class LadybirdActivity : AppCompatActivity() {
         popup.elevation = resources.displayMetrics.density * 8f
         popup.isOutsideTouchable = true
 
-        // Top icon row
+        // Top icon row: forward / bookmark / share / page info / reload
         popupView.findViewById<View>(R.id.menuForward).setOnClickListener {
             popup.dismiss(); view.goForward()
         }
         popupView.findViewById<View>(R.id.menuBookmarkAdd).setOnClickListener {
             popup.dismiss(); addCurrentBookmark()
         }
-        popupView.findViewById<View>(R.id.menuHome).setOnClickListener {
-            popup.dismiss(); navigateToInput(settings.homePage)
-        }
         popupView.findViewById<View>(R.id.menuShare).setOnClickListener {
             popup.dismiss(); shareCurrent()
+        }
+        popupView.findViewById<View>(R.id.menuPageInfo).setOnClickListener {
+            popup.dismiss(); showPageInfoDialog()
         }
         popupView.findViewById<View>(R.id.menuRefresh).setOnClickListener {
             popup.dismiss(); view.reload()
         }
 
-        // List rows
+        // List rows, grouped like Vanadium
         popupView.findViewById<View>(R.id.rowNewPage).setOnClickListener {
             popup.dismiss(); navigateToInput(settings.homePage)
         }
         popupView.findViewById<View>(R.id.rowHistory).setOnClickListener {
             popup.dismiss(); showHistorySheet()
+        }
+        popupView.findViewById<View>(R.id.rowDeleteData).setOnClickListener {
+            popup.dismiss(); confirmDeleteBrowsingData()
         }
         popupView.findViewById<View>(R.id.rowBookmarks).setOnClickListener {
             popup.dismiss(); showBookmarksSheet()
@@ -469,17 +538,10 @@ class LadybirdActivity : AppCompatActivity() {
         popupView.findViewById<View>(R.id.rowFindInPage).setOnClickListener {
             popup.dismiss(); showFindBar()
         }
-        popupView.findViewById<View>(R.id.rowViewSource).setOnClickListener {
-            popup.dismiss(); openViewSource()
-        }
-        popupView.findViewById<View>(R.id.rowOpenExternal).setOnClickListener {
-            popup.dismiss(); openCurrentInSystemBrowser()
-        }
-        popupView.findViewById<View>(R.id.rowClearCache).setOnClickListener {
-            popup.dismiss()
-            view.clearCache()
-            view.collectGarbage()
-            Toast.makeText(this, R.string.menu_clear_cache_done, Toast.LENGTH_SHORT).show()
+        val desktopCheck = popupView.findViewById<android.widget.CheckBox>(R.id.desktopSiteCheck)
+        desktopCheck.isChecked = settings.userAgent == UserAgentPreset.ChromeDesktop
+        popupView.findViewById<View>(R.id.rowDesktopSite).setOnClickListener {
+            popup.dismiss(); toggleDesktopSite()
         }
         popupView.findViewById<View>(R.id.rowSettings).setOnClickListener {
             popup.dismiss()
@@ -489,23 +551,42 @@ class LadybirdActivity : AppCompatActivity() {
             popup.dismiss(); showAboutDialog()
         }
 
-        // Zoom controls
-        val zoomLabel = popupView.findViewById<TextView>(R.id.zoomLabel)
-        fun updateZoom() {
-            val pct = (view.zoomLevel() * 100).toInt()
-            zoomLabel.text = "$pct%"
-        }
-        updateZoom()
-        popupView.findViewById<View>(R.id.zoomInButton).setOnClickListener {
-            view.zoomIn(); updateZoom()
-        }
-        popupView.findViewById<View>(R.id.zoomOutButton).setOnClickListener {
-            view.zoomOut(); updateZoom()
-        }
-        zoomLabel.setOnClickListener { view.zoomReset(); updateZoom() }
-
         // Anchor at top-right under the 3-dot button, like Chromium
         popup.showAsDropDown(binding.menuButton, 0, 0, android.view.Gravity.END)
+    }
+
+    private fun toggleDesktopSite() {
+        settings.userAgent = if (settings.userAgent == UserAgentPreset.ChromeDesktop)
+            UserAgentPreset.ChromeAndroid
+        else
+            UserAgentPreset.ChromeDesktop
+        applySettingsToView()
+        if (currentUrl.isNotBlank() && !isNewTabUrl(currentUrl)) view.reload()
+    }
+
+    private fun confirmDeleteBrowsingData() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.menu_delete_browsing_data)
+            .setMessage(R.string.delete_browsing_data_message)
+            .setPositiveButton(R.string.dialog_clear) { _, _ ->
+                history.clear()
+                view.clearCache()
+                view.collectGarbage()
+                Toast.makeText(this, R.string.menu_clear_cache_done, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    private fun showPageInfoDialog() {
+        if (currentUrl.isBlank() || isNewTabUrl(currentUrl)) return
+        val secure = currentUrl.startsWith("https://")
+        MaterialAlertDialogBuilder(this)
+            .setTitle(currentTitle.ifBlank { currentUrl })
+            .setMessage("$currentUrl\n\n" + getString(if (secure) R.string.page_info_secure else R.string.page_info_insecure))
+            .setPositiveButton(R.string.dialog_ok, null)
+            .setNeutralButton(R.string.menu_open_external) { _, _ -> openCurrentInSystemBrowser() }
+            .show()
     }
 
     private fun addCurrentBookmark() {
@@ -669,6 +750,7 @@ class LadybirdActivity : AppCompatActivity() {
             items += R.string.menu_share to { shareCurrent() }
             items += R.string.menu_reload to { view.reload() }
             items += R.string.context_view_source to { openViewSource() }
+            items += R.string.menu_open_external to { openCurrentInSystemBrowser() }
             items += R.string.menu_find to { showFindBar() }
         }
         items += R.string.menu_bookmark to { addCurrentBookmark() }

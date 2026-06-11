@@ -12,8 +12,10 @@
         <item name="colorOnSurface">@color/ladybird_on_surface</item>
         <item name="android:colorBackground">@color/ladybird_background</item>
         <item name="android:windowBackground">@color/ladybird_background</item>
-        <item name="android:statusBarColor">@color/ladybird_surface</item>
-        <item name="android:navigationBarColor">@color/ladybird_surface</item>
+        <!-- Edge-to-edge like Chromium: content draws under transparent bars. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:editTextBackground">@android:color/transparent</item>

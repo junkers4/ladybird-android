@@ -1,22 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Vanadium / Chrome palette (dark). Chrome's charcoal surfaces with GM3 blue accent. -->
-    <color name="ladybird_accent">#FFA8C7FA</color>
-    <color name="ladybird_accent_pressed">#FFC2E7FF</color>
-    <color name="ladybird_accent_container">#FF0842A0</color>
-    <color name="ladybird_secondary">#FFC4C7C5</color>
+    <!-- Vanadium (stock Chromium on GrapheneOS) dark palette, sampled 1:1 from
+         a Pixel running Vanadium: #0E0E0E toolbar/background, #3D3D3D omnibox
+         pill, #191919 NTP shortcut card, #2C2C2C overflow-menu card. -->
+    <color name="ladybird_accent">#FF8AB4F8</color>
+    <color name="ladybird_accent_pressed">#FFAECBFA</color>
+    <color name="ladybird_accent_container">#FF2B2F36</color>
+    <color name="ladybird_secondary">#FF9AA0A6</color>
 
-    <color name="ladybird_background">#FF202124</color>
-    <color name="ladybird_surface">#FF292A2D</color>
-    <color name="ladybird_surface_variant">#FF35363A</color>
-    <color name="ladybird_control_surface">#FF35363A</color>
-    <color name="ladybird_field_surface">#FF35363A</color>
+    <color name="ladybird_background">#FF0E0E0E</color>
+    <color name="ladybird_surface">#FF0E0E0E</color>
+    <color name="ladybird_surface_variant">#FF191919</color>
+    <color name="ladybird_control_surface">#FF2C2C2C</color>
+    <color name="ladybird_field_surface">#FF3D3D3D</color>
 
-    <color name="ladybird_on_surface">#FFE8EAED</color>
-    <color name="ladybird_on_surface_muted">#FF9AA0A6</color>
-    <color name="ladybird_outline_soft">#FF3C4043</color>
-    <color name="ladybird_divider">#FF3C4043</color>
+    <color name="ladybird_on_surface">#FFF2F2F2</color>
+    <color name="ladybird_on_surface_muted">#FFB0B0B0</color>
+    <color name="ladybird_outline_soft">#FF3A3A3A</color>
+    <color name="ladybird_divider">#FF3A3A3A</color>
 
-    <color name="ladybird_progress">#FFA8C7FA</color>
-    <color name="ladybird_chip">#FF35363A</color>
+    <color name="ladybird_progress">#FF8AB4F8</color>
+    <color name="ladybird_chip">#FF2C2C2C</color>
 </resources>

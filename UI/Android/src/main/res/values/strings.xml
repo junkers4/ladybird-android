@@ -126,4 +126,10 @@
     <string name="settings_clear_data_summary">Removes history and bookmarks stored on this device</string>
     <string name="settings_clear_data_confirm">Clear history and bookmarks?</string>
     <string name="settings_clear_data_done">Browsing data cleared</string>
+    <string name="menu_delete_browsing_data">Delete browsing data</string>
+    <string name="menu_desktop_site">Desktop site</string>
+    <string name="menu_page_info">Page info</string>
+    <string name="delete_browsing_data_message">Clears your browsing history and the in-memory cache.</string>
+    <string name="page_info_secure">Connection is secure (HTTPS)</string>
+    <string name="page_info_insecure">Connection is not secure</string>
 </resources>
