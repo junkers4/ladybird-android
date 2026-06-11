@@ -1,134 +1,90 @@
 package org.serenityos.ladybird
 
 import android.os.Bundle
-import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
+import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.serenityos.ladybird.databinding.ActivitySettingsBinding
 
 /**
- * Settings apply instantly as the user changes them, matching the behaviour of
- * Chromium-based browsers (Vanadium/Chrome) which have no explicit Save action.
+ * Chrome-style settings: every row shows its current value as the summary,
+ * choice rows open a radio dialog, and changes apply immediately (the
+ * browser activity re-applies settings in onResume).
  */
 class SettingsActivity : AppCompatActivity() {
 
     private lateinit var settings: AppSettings
-    private lateinit var binding: org.serenityos.ladybird.databinding.ActivitySettingsBinding
-
-    // Guards spinner/radio listeners from firing while we apply the initial state.
-    private var bindingInitialState = true
+    private lateinit var binding: ActivitySettingsBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = org.serenityos.ladybird.databinding.ActivitySettingsBinding.inflate(layoutInflater)
+        binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
         settings = AppSettings(this)
 
-        setSupportActionBar(binding.settingsToolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { root, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            root.setPadding(0, bars.top, 0, bars.bottom)
+            insets
+        }
+
         binding.settingsToolbar.setNavigationOnClickListener { finish() }
 
-        bindState()
-        wireListeners()
-    }
-
-    private fun bindState() {
-        bindingInitialState = true
-
-        val engines = SearchEngine.entries
-        binding.searchEngineSpinner.adapter = ArrayAdapter(
-            this,
-            R.layout.spinner_item,
-            engines.map { it.displayName }
-        ).also { it.setDropDownViewResource(R.layout.spinner_dropdown_item) }
-        binding.searchEngineSpinner.setSelection(engines.indexOf(settings.searchEngine))
-
-        val agents = UserAgentPreset.entries
-        binding.userAgentSpinner.adapter = ArrayAdapter(
-            this,
-            R.layout.spinner_item,
-            agents.map { it.displayName }
-        ).also { it.setDropDownViewResource(R.layout.spinner_dropdown_item) }
-        binding.userAgentSpinner.setSelection(agents.indexOf(settings.userAgent))
-
-        val compats = NavigatorCompatibility.entries
-        binding.navCompatSpinner.adapter = ArrayAdapter(
-            this,
-            R.layout.spinner_item,
-            compats.map { it.displayName }
-        ).also { it.setDropDownViewResource(R.layout.spinner_dropdown_item) }
-        binding.navCompatSpinner.setSelection(compats.indexOf(settings.navigatorCompatibility))
-
-        binding.homePageEdit.setText(settings.homePage)
-
-        binding.colorSchemeGroup.check(
-            when (settings.colorScheme) {
-                ColorSchemePreference.Light -> R.id.colorSchemeLight
-                ColorSchemePreference.Dark -> R.id.colorSchemeDark
-                ColorSchemePreference.Auto -> R.id.colorSchemeAuto
-            }
-        )
-
-        binding.jsSwitch.isChecked = settings.javascriptHelpersEnabled
-        binding.pinchSwitch.isChecked = settings.pinchZoomEnabled
-
-        val version = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "dev"
-        } catch (_: Exception) { "dev" }
-        binding.aboutVersion.text = getString(R.string.settings_about_version, version)
-
-        bindingInitialState = false
-    }
-
-    private fun wireListeners() {
-        val engines = SearchEngine.entries
-        binding.searchEngineSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (!bindingInitialState) settings.searchEngine = engines[position]
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        binding.rowSearchEngine.setOnClickListener {
+            val engines = SearchEngine.entries
+            singleChoiceDialog(
+                R.string.settings_search_engine,
+                engines.map { it.displayName },
+                engines.indexOf(settings.searchEngine)
+            ) { idx -> settings.searchEngine = engines[idx]; refreshSummaries() }
         }
 
-        val agents = UserAgentPreset.entries
-        binding.userAgentSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (!bindingInitialState) settings.userAgent = agents[position]
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        binding.rowHomePage.setOnClickListener { showHomePageDialog() }
+
+        binding.rowColorScheme.setOnClickListener {
+            val schemes = ColorSchemePreference.entries
+            singleChoiceDialog(
+                R.string.settings_color_scheme,
+                schemes.map { it.name },
+                schemes.indexOf(settings.colorScheme)
+            ) { idx -> settings.colorScheme = schemes[idx]; refreshSummaries() }
         }
 
-        val compats = NavigatorCompatibility.entries
-        binding.navCompatSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (!bindingInitialState) settings.navigatorCompatibility = compats[position]
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        binding.rowUserAgent.setOnClickListener {
+            val agents = UserAgentPreset.entries
+            singleChoiceDialog(
+                R.string.settings_user_agent,
+                agents.map { it.displayName },
+                agents.indexOf(settings.userAgent)
+            ) { idx -> settings.userAgent = agents[idx]; refreshSummaries() }
         }
 
-        // Persist the home page when the field loses focus (instant apply).
-        binding.homePageEdit.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) persistHomePage()
+        binding.rowNavCompat.setOnClickListener {
+            val compats = NavigatorCompatibility.entries
+            singleChoiceDialog(
+                R.string.settings_navigator_compat,
+                compats.map { it.displayName },
+                compats.indexOf(settings.navigatorCompatibility)
+            ) { idx -> settings.navigatorCompatibility = compats[idx]; refreshSummaries() }
         }
 
-        binding.colorSchemeGroup.setOnCheckedChangeListener { _, checkedId ->
-            if (bindingInitialState) return@setOnCheckedChangeListener
-            settings.colorScheme = when (checkedId) {
-                R.id.colorSchemeLight -> ColorSchemePreference.Light
-                R.id.colorSchemeDark -> ColorSchemePreference.Dark
-                else -> ColorSchemePreference.Auto
-            }
+        binding.jsSwitch.setOnCheckedChangeListener { _, checked ->
+            settings.javascriptHelpersEnabled = checked
         }
+        binding.rowJavascript.setOnClickListener { binding.jsSwitch.toggle() }
 
-        binding.jsSwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (!bindingInitialState) settings.javascriptHelpersEnabled = isChecked
+        binding.pinchSwitch.setOnCheckedChangeListener { _, checked ->
+            settings.pinchZoomEnabled = checked
         }
-        binding.pinchSwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (!bindingInitialState) settings.pinchZoomEnabled = isChecked
-        }
+        binding.rowPinch.setOnClickListener { binding.pinchSwitch.toggle() }
 
-        binding.clearDataRow.setOnClickListener {
+        binding.rowClearData.setOnClickListener {
             MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.settings_clear_data)
                 .setMessage(R.string.settings_clear_data_confirm)
@@ -141,27 +97,70 @@ class SettingsActivity : AppCompatActivity() {
                 .show()
         }
 
-        binding.resetRow.setOnClickListener {
+        binding.rowReset.setOnClickListener {
             MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.settings_reset)
                 .setMessage(R.string.settings_reset_summary)
                 .setPositiveButton(R.string.dialog_reset) { _, _ ->
                     settings.resetToDefaults()
-                    bindState()
+                    refreshSummaries()
+                    refreshSwitches()
                 }
                 .setNegativeButton(R.string.dialog_cancel, null)
                 .show()
         }
+
+        val version = try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "dev"
+        } catch (_: Exception) { "dev" }
+        binding.aboutVersion.text = getString(R.string.settings_about_version, version)
+
+        refreshSummaries()
+        refreshSwitches()
     }
 
-    private fun persistHomePage() {
-        val value = binding.homePageEdit.text.toString().trim()
-        if (value != settings.homePage) settings.homePage = value
+    private fun refreshSummaries() {
+        binding.searchEngineSummary.text = settings.searchEngine.displayName
+        binding.homePageSummary.text = settings.homePage
+        binding.colorSchemeSummary.text = settings.colorScheme.name
+        binding.userAgentSummary.text = settings.userAgent.displayName
+        binding.navCompatSummary.text = settings.navigatorCompatibility.displayName
     }
 
-    override fun onPause() {
-        // Make sure an in-progress edit is committed even without losing focus.
-        persistHomePage()
-        super.onPause()
+    private fun refreshSwitches() {
+        binding.jsSwitch.isChecked = settings.javascriptHelpersEnabled
+        binding.pinchSwitch.isChecked = settings.pinchZoomEnabled
+    }
+
+    private fun singleChoiceDialog(titleRes: Int, labels: List<String>, current: Int, onPick: (Int) -> Unit) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(titleRes)
+            .setSingleChoiceItems(labels.toTypedArray(), current) { dialog, idx ->
+                onPick(idx)
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    private fun showHomePageDialog() {
+        val edit = EditText(this).apply {
+            setText(settings.homePage)
+            setSelection(text.length)
+        }
+        val container = FrameLayout(this).apply {
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, 8, pad, 0)
+            addView(edit)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.settings_home_page)
+            .setView(container)
+            .setPositiveButton(R.string.dialog_ok) { _, _ ->
+                settings.homePage = edit.text.toString().trim()
+                refreshSummaries()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
     }
 }

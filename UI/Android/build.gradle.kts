@@ -10,15 +10,6 @@ var buildDir = layout.buildDirectory.get()
 var cacheDir = System.getenv("LADYBIRD_CACHE_DIR") ?: "$buildDir/caches"
 var sourceDir = layout.projectDirectory.dir("../../").toString()
 
-task<Exec>("buildHostTools") {
-    commandLine = listOf("$sourceDir/Meta/ladybird.py", "install", "--preset", "Host_Tools")
-    environment = mapOf(
-        "PATH" to System.getenv("PATH")!!
-    )
-}
-tasks.named("preBuild").dependsOn("buildHostTools")
-tasks.named("prepareKotlinBuildScriptModel").dependsOn("buildHostTools")
-
 val ladybirdAssetsDir = layout.buildDirectory.dir("generated/ladybird-assets")
 val packageLadybirdAssets = tasks.register<Zip>("packageLadybirdAssets") {
     archiveFileName.set("ladybird-assets.zip")
@@ -50,7 +41,6 @@ android {
             cmake {
                 cppFlags += "-std=c++23"
                 arguments += listOf(
-                    "-DLagomTools_DIR=$sourceDir/Build/host-tools/share/LagomTools",
                     "-DANDROID_STL=c++_shared",
                     "-DLADYBIRD_CACHE_DIR=$cacheDir",
                     "-DVCPKG_ROOT=$sourceDir/Build/vcpkg",

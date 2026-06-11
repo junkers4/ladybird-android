@@ -61,6 +61,11 @@
             android:label="@string/settings_title"
             android:parentActivityName=".LadybirdActivity"
             android:theme="@style/Theme.Ladybird" />
+        <activity
+            android:name=".UrlListActivity"
+            android:exported="false"
+            android:parentActivityName=".LadybirdActivity"
+            android:theme="@style/Theme.Ladybird" />
         <service
             android:name=".WebContentService"
             android:enabled="true"

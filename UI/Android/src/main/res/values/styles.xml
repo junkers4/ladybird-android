@@ -206,4 +206,46 @@
         <item name="android:padding">13dp</item>
         <item name="android:tint">@color/ladybird_on_surface</item>
     </style>
+
+    <!-- Chrome-style settings rows -->
+    <style name="Chromium.SettingsHeader" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingTop">22dp</item>
+        <item name="android:paddingBottom">8dp</item>
+        <item name="android:textColor">@color/ladybird_accent</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="Chromium.SettingsRow" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">64dp</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingBottom">10dp</item>
+    </style>
+
+    <style name="Chromium.SettingsTitle" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/ladybird_on_surface</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <style name="Chromium.SettingsSummary" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:textColor">@color/ladybird_on_surface_muted</item>
+        <item name="android:textSize">14sp</item>
+    </style>
 </resources>
