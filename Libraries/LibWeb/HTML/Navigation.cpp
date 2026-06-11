@@ -1475,13 +1475,21 @@ void Navigation::update_the_navigation_api_entries_for_a_same_document_navigatio
     // 4. If navigationType is "traverse", then:
     if (navigation_type == Bindings::NavigationType::Traverse) {
         // 1. Set navigation's current entry index to the result of getting the navigation API entry index of destinationSHE within navigation.
-        m_current_entry_index = get_the_navigation_api_entry_index(destination_she);
+        auto destination_index = get_the_navigation_api_entry_index(destination_she);
 
         // 2. Assert: navigation's current entry index is not −1.
         // NOTE: This algorithm is only called for same-document traversals.
         //       Cross-document traversals will instead call either initialize the navigation API entries for a new document
         //       or update the navigation API entries for reactivation
-        VERIFY(m_current_entry_index != -1);
+        // FIXME: The spec asserts destination is always in the entry list, but real-world
+        //        sites (e.g. duckduckgo.com search) reach this with an entry that is
+        //        missing from our list, which used to VERIFY-crash the WebContent
+        //        process. Keep the old current entry and skip the update instead.
+        if (destination_index == -1) {
+            dbgln("Navigation: same-document traverse to an SHE missing from the entry list; skipping navigation API entry update");
+            return;
+        }
+        m_current_entry_index = destination_index;
     }
 
     // 5. Otherwise, if navigationType is "push", then:
