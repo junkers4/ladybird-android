@@ -38,6 +38,12 @@ else()
     find_package(hwy REQUIRED)
 
     find_package(FFMPEG REQUIRED)
+
+    # vcpkg's openh264.pc advertises -lc++, which pkgconf resolves to the host
+    # NDK's x86_64 libc++.so — linking that into aarch64 targets fails with
+    # "incompatible with aarch64linux". The real C++ runtime (c++_shared) is
+    # already provided by ANDROID_STL, so just drop the bogus host path.
+    list(FILTER FFMPEG_LIBRARIES EXCLUDE REGEX "/toolchains/llvm/prebuilt/[^;]*/lib/libc\\+\\+\\.so$")
 endif()
 
 if (NOT APPLE AND NOT ANDROID AND NOT WIN32)

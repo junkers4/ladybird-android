@@ -192,7 +192,14 @@ function(_rust_crate_common_setup)
         else()
             set(ndk_triple_prefix "${RUST_TARGET_TRIPLE}")
         endif()
-        set(android_rust_cc "${ndk_toolchain_bin}/${ndk_triple_prefix}${CMAKE_SYSTEM_VERSION}-clang")
+        if (DEFINED ANDROID_PLATFORM_LEVEL)
+            set(android_api_level "${ANDROID_PLATFORM_LEVEL}")
+        elseif (DEFINED ANDROID_PLATFORM)
+            string(REGEX REPLACE "^android-" "" android_api_level "${ANDROID_PLATFORM}")
+        else()
+            set(android_api_level "${CMAKE_SYSTEM_VERSION}")
+        endif()
+        set(android_rust_cc "${ndk_toolchain_bin}/${ndk_triple_prefix}${android_api_level}-clang")
         set(cargo_env
             "CC_${target_underscore}=${android_rust_cc}"
             "CXX_${target_underscore}=${android_rust_cc}++"

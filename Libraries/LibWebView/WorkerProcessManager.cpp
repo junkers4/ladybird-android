@@ -117,7 +117,7 @@ Web::HTML::WorkerAgentId WorkerProcessManager::start_worker_agent(Owner owner, W
     auto client_or_error = launch_web_worker_process(request.agent_type, agent_id);
     if (client_or_error.is_error()) {
         dbgln("WorkerProcessManager: failed to launch worker process: {}", client_or_error.error());
-        notify_worker_script_load_error(owner);
+        notify_worker_script_load_failure(owner);
         return 0;
     }
     auto client = client_or_error.release_value();

@@ -22,6 +22,10 @@
 
 namespace Ladybird {
 
+// The Android port drives a single page per WebView. Upstream requires page
+// ids > 0 (0 is reserved), so the one-and-only page gets id 1.
+static constexpr u64 INITIAL_PAGE_ID = 1;
+
 WebViewImplementationNative::WebViewImplementationNative(jobject thiz)
     : m_java_instance(thiz)
 {
@@ -120,6 +124,8 @@ void WebViewImplementationNative::initialize_client(WebView::ViewImplementation:
     auto new_client = bind_web_content_client();
 
     m_client_state.client = new_client;
+    m_client_state.page_index = INITIAL_PAGE_ID;
+    client().async_initialize(INITIAL_PAGE_ID);
     on_web_content_crashed = [this] {
         warnln("WebContent crashed! Attempting to respawn the WebContent client.");
         // Re-bind a fresh WebContent service and re-emit viewport/zoom so the
@@ -131,10 +137,10 @@ void WebViewImplementationNative::initialize_client(WebView::ViewImplementation:
     };
 
     m_client_state.client_handle = Web::Crypto::generate_random_uuid();
-    client().async_set_window_handle(0, m_client_state.client_handle);
+    client().async_set_window_handle(INITIAL_PAGE_ID, m_client_state.client_handle);
 
-    client().async_set_viewport(0, viewport_size(), m_device_pixel_ratio, Web::ViewportIsFullscreen::No);
-    client().async_set_zoom_level(0, m_zoom_level);
+    client().async_set_viewport(INITIAL_PAGE_ID, viewport_size(), m_device_pixel_ratio, Web::ViewportIsFullscreen::No);
+    client().async_set_zoom_level(INITIAL_PAGE_ID, m_zoom_level);
 
     set_system_visibility_state(Web::HTML::VisibilityState::Visible);
 
@@ -216,7 +222,7 @@ void WebViewImplementationNative::set_device_pixel_ratio(double f)
 void WebViewImplementationNative::set_zoom_level(double f)
 {
     m_zoom_level = f;
-    client().async_set_zoom_level(0, m_zoom_level);
+    client().async_set_zoom_level(INITIAL_PAGE_ID, m_zoom_level);
 }
 
 void WebViewImplementationNative::mouse_event(Web::MouseEvent::Type event_type, float x, float y, float raw_x, float raw_y)
@@ -256,8 +262,8 @@ void WebViewImplementationNative::wheel_event(float x, float y, float raw_x, flo
         Web::UIEvents::MouseButton::None,
         Web::UIEvents::MouseButton::None,
         Web::UIEvents::KeyModifier::Mod_None,
-        wheel_delta_x,
-        wheel_delta_y,
+        static_cast<double>(wheel_delta_x),
+        static_cast<double>(wheel_delta_y),
         0,
         nullptr
     };
@@ -281,7 +287,8 @@ NonnullRefPtr<WebView::WebContentClient> WebViewImplementationNative::bind_web_c
     auto socket = MUST(Core::LocalSocket::adopt_fd(ui_fd));
     MUST(socket->set_blocking(true));
 
-    auto new_client = make_ref_counted<WebView::WebContentClient>(make<IPC::Transport>(move(socket)), *this);
+    auto new_client = make_ref_counted<WebView::WebContentClient>(make<IPC::Transport>(move(socket)), INITIAL_PAGE_ID);
+    new_client->register_view(INITIAL_PAGE_ID, *this);
 
     return new_client;
 }

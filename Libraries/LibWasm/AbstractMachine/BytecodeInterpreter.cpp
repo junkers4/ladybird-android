@@ -62,8 +62,6 @@ struct CompiledFaultRecoveryContext {
 
 thread_local CompiledFaultRecoveryContext* s_compiled_fault_recovery = nullptr;
 
-#if WASM_COMPILED_FAULT_RECOVERY_SUPPORTED
-
 static StringView cranelift_trap_message(u8 trap_code)
 {
     // Cranelift reserves trap codes at the high end of u8:
@@ -82,6 +80,8 @@ static StringView cranelift_trap_message(u8 trap_code)
         return "unreachable executed"sv;
     }
 }
+
+#if WASM_COMPILED_FAULT_RECOVERY_SUPPORTED
 
 static bool is_wasm_memory_fault(Wasm::Configuration& configuration, void* address)
 {

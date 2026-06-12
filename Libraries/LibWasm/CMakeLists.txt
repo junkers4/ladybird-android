@@ -13,6 +13,11 @@ if (NOT WIN32)
 endif()
 
 option(ENABLE_CRANELIFT_JIT "Enable Cranelift-based AOT compilation for WebAssembly" ON)
+if (ANDROID)
+    # The Cranelift compiler runs as a separate spawned process, which Android
+    # apps cannot exec. Fall back to the interpreter (CraneliftStubs.cpp).
+    set(ENABLE_CRANELIFT_JIT OFF)
+endif()
 
 set(WASM_COMPILED_FAULT_RECOVERY_SUPPORTED 0)
 
