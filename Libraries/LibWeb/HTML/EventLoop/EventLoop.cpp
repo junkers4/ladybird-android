@@ -188,7 +188,8 @@ void EventLoop::process()
     }
 
     // If there are eligible tasks in the queue, schedule a new round of processing. :^)
-    if (m_task_queue->has_runnable_tasks() || (!m_microtask_queue.is_empty() && !m_performing_a_microtask_checkpoint)) {
+    bool will_reschedule = m_task_queue->has_runnable_tasks() || (!m_microtask_queue.is_empty() && !m_performing_a_microtask_checkpoint);
+    if (will_reschedule) {
         schedule();
     }
 }

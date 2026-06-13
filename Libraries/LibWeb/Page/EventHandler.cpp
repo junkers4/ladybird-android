@@ -1257,6 +1257,12 @@ EventResult EventHandler::handle_paste(Utf16String const& text)
 
 void EventHandler::handle_sdl_input_events()
 {
+    // SDL is only initialized for the Gamepad API, and that init is compiled out on Android
+    // (see Services/WebContent/main.cpp). Pumping SDL events here without SDL_Init drives the
+    // SDL Android video driver, which blocks indefinitely in Android_WaitLifecycleEvent waiting
+    // for a lifecycle "resumed" event that never arrives in the headless WebContent process,
+    // hanging the rendering task and leaving the screen black.
+#if !defined(AK_OS_ANDROID)
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
@@ -1273,6 +1279,7 @@ void EventHandler::handle_sdl_input_events()
             break;
         }
     }
+#endif
 }
 
 void EventHandler::handle_gamepad_connected(SDL_JoystickID sdl_joystick_id)

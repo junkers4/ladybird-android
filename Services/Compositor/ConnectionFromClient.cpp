@@ -64,6 +64,7 @@ Messages::CompositorControlServer::ConnectWebContentResponse ConnectionFromClien
 
 void ConnectionFromClient::create_context(Web::Compositor::CompositorContextId context_id, Optional<u64> page_id, i32 web_content_connection_id)
 {
+    dbgln("Compositor: create_context");
     auto* connection = web_content_connection(web_content_connection_id);
     VERIFY(connection);
     m_compositor_state->create_context(context_id, page_id, *connection);

@@ -15,6 +15,8 @@
 #include <LibWeb/Crypto/Crypto.h>
 #include <LibWebView/ConsoleOutput.h>
 #include <LibWebView/ViewImplementation.h>
+#include <LibWebView/Application.h>
+#include <LibWebView/HelperProcess.h>
 #include <LibWebView/WebContentClient.h>
 #include <android/bitmap.h>
 #include <jni.h>
@@ -126,6 +128,20 @@ void WebViewImplementationNative::initialize_client(WebView::ViewImplementation:
     m_client_state.client = new_client;
     m_client_state.page_index = INITIAL_PAGE_ID;
     client().async_initialize(INITIAL_PAGE_ID);
+
+    // Presentation flows through the Compositor process; without this link
+    // WebContent never delivers frames and the view stays blank. The connect
+    // request is synchronous, so it must wait until the Java side has handed
+    // the socket to the service (otherwise the main thread deadlocks waiting
+    // for a reply the service can never send).
+    auto connect_to_compositor = [client = NonnullRefPtr(*new_client)] {
+        if (auto result = WebView::Application::the().connect_web_content_to_compositor(*client); result.is_error())
+            dbgln("Failed to connect WebContent to compositor: {}", result.error());
+    };
+    if (WebView::Android::compositor_service_connected)
+        connect_to_compositor();
+    else
+        WebView::Android::on_compositor_service_connected.append(move(connect_to_compositor));
     on_web_content_crashed = [this] {
         warnln("WebContent crashed! Attempting to respawn the WebContent client.");
         // Re-bind a fresh WebContent service and re-emit viewport/zoom so the
@@ -207,16 +223,44 @@ void WebViewImplementationNative::paint_into_bitmap(void* android_bitmap_raw, An
     }
 }
 
+// handle_resize() registers the page's compositor context, which performs a
+// synchronous IPC request to the Compositor service. Until the Java side has
+// delivered the socket to the service (onServiceConnected on the main looper),
+// that request would deadlock the main thread, so defer it.
+void WebViewImplementationNative::handle_resize_when_compositor_ready()
+{
+    if (WebView::Android::compositor_service_connected) {
+        handle_resize();
+        return;
+    }
+
+    // Keep WebContent's viewport current in the meantime; this part is async.
+    client().async_set_viewport(page_id(), viewport_size(), m_device_pixel_ratio, Web::ViewportIsFullscreen::No);
+
+    if (m_pending_compositor_resize)
+        return;
+    m_pending_compositor_resize = true;
+    WebView::Android::on_compositor_service_connected.append([this] {
+        m_pending_compositor_resize = false;
+        // Connects WebContent to the compositor (if not already) and registers
+        // this page's compositor context.
+        handle_resize();
+        // Frames WebContent presented before the context registration were
+        // dropped by the compositor; ask it to re-register and re-present.
+        client().async_compositor_process_reconnected();
+    });
+}
+
 void WebViewImplementationNative::set_viewport_geometry(int w, int h)
 {
     m_viewport_size = { w, h };
-    handle_resize();
+    handle_resize_when_compositor_ready();
 }
 
 void WebViewImplementationNative::set_device_pixel_ratio(double f)
 {
     m_device_pixel_ratio = f;
-    handle_resize();
+    handle_resize_when_compositor_ready();
 }
 
 void WebViewImplementationNative::set_zoom_level(double f)

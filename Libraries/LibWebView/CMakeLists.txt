@@ -101,3 +101,4 @@ if (ENABLE_INSTALL_HEADERS)
         install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${header}" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${subdirectory}")
     endforeach()
 endif()
+

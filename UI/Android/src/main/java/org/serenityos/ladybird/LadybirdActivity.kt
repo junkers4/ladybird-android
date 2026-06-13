@@ -56,6 +56,25 @@ class LadybirdActivity : AppCompatActivity() {
     private fun isNewTabUrl(url: String): Boolean =
         url == NEW_TAB_LOAD_URL || url == AppSettings.DEFAULT_HOME || url.startsWith("data:text/html")
 
+    // Called from native code (by name): binds the Compositor Android service
+    // with the service-side end of a socketpair created in native code.
+    fun bindCompositorService(ipcFd: Int) {
+        Log.i("Ladybird", "Binding Compositor service with IPC fd $ipcFd")
+        val connector = LadybirdServiceConnection(ipcFd, resourceDir)
+        connector.onConnect = {
+            Log.i("Ladybird", "Compositor service connected")
+            nativeCompositorServiceConnected()
+        }
+        val bound = bindService(
+            Intent(this, CompositorService::class.java),
+            connector,
+            Context.BIND_AUTO_CREATE
+        )
+        Log.i("Ladybird", "bindService(CompositorService) returned $bound")
+    }
+
+    private external fun nativeCompositorServiceConnected()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -170,6 +189,7 @@ class LadybirdActivity : AppCompatActivity() {
         }
 
         urlEditText.setOnEditorActionListener { textView: TextView, actionId: Int, keyEvent: KeyEvent? ->
+            Log.i("LadybirdOmni", "editorAction actionId=$actionId keyCode=${keyEvent?.keyCode} action=${keyEvent?.action} text='${textView.text}'")
             val isImeSubmit = actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_SEARCH
             val isHardwareEnter = keyEvent?.keyCode == KeyEvent.KEYCODE_ENTER && keyEvent.action == KeyEvent.ACTION_DOWN
             if (isImeSubmit || isHardwareEnter) {
@@ -191,6 +211,7 @@ class LadybirdActivity : AppCompatActivity() {
         // clearly visible, then focuses it.  leaveOmniboxEditMode() restores the
         // overlay if the user cancels without navigating.
         val ntpFocusHandler = View.OnClickListener {
+            Log.i("LadybirdOmni", "ntp pill tapped -> enter edit mode")
             binding.newTabOverlay.visibility = View.GONE
             binding.urlBarCard.visibility = View.VISIBLE
             enterOmniboxEditMode()
@@ -254,6 +275,7 @@ class LadybirdActivity : AppCompatActivity() {
 
     private fun navigateToInput(input: String) {
         val url = resolveTarget(input)
+        Log.i("LadybirdOmni", "navigateToInput input='$input' -> url='$url'")
         urlEditText.setText(if (isNewTabUrl(url)) "" else url, TextView.BufferType.EDITABLE)
         leaveOmniboxEditMode()
         setLoading(true)
@@ -428,11 +450,12 @@ class LadybirdActivity : AppCompatActivity() {
     }
 
     private fun enterOmniboxEditMode() {
-        urlEditText.requestFocus()
+        val gotFocus = urlEditText.requestFocus()
         urlEditText.post {
             urlEditText.setSelection(urlEditText.text.length)
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showSoftInput(urlEditText, InputMethodManager.SHOW_IMPLICIT)
+            val shown = imm.showSoftInput(urlEditText, InputMethodManager.SHOW_IMPLICIT)
+            Log.i("LadybirdOmni", "enterOmniboxEditMode requestFocus=$gotFocus isFocused=${urlEditText.isFocused} showSoftInput=$shown")
         }
     }
 

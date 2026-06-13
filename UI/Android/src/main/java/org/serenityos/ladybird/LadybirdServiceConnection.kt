@@ -20,6 +20,7 @@ class LadybirdServiceConnection(
     ServiceConnection {
     var boundToService: Boolean = false
     var onDisconnect: () -> Unit = {}
+    var onConnect: () -> Unit = {}
     private var service: Messenger? = null
 
     override fun onServiceConnected(className: ComponentName, svc: IBinder) {
@@ -40,6 +41,8 @@ class LadybirdServiceConnection(
         msg.data.putParcelable("IPC_SOCKET", parcel)
         service!!.send(msg)
         parcel.detachFd()
+
+        onConnect()
     }
 
     override fun onServiceDisconnected(className: ComponentName) {

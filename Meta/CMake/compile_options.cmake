@@ -241,7 +241,14 @@ endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     if (NOT MSVC)
-        add_cxx_compile_options(-ggdb3)
+        # Android: full -ggdb3 debug info makes liblagom-web.a ~13 GB and repeatedly
+        # exhausts the build disk. We strip symbols before packaging and debug via
+        # logcat (not a native debugger), so line-table-only info is plenty.
+        if (ANDROID)
+            add_cxx_compile_options(-g1)
+        else()
+            add_cxx_compile_options(-ggdb3)
+        endif()
         add_cxx_compile_options(-Og)
     endif()
 elseif (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")

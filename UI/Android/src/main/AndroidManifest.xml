@@ -86,6 +86,11 @@
             android:enabled="true"
             android:exported="false"
             android:process=":WebWorker" />
+        <service
+            android:name=".CompositorService"
+            android:enabled="true"
+            android:exported="false"
+            android:process=":Compositor" />
     </application>
 
 </manifest>

@@ -773,9 +773,17 @@ ErrorOr<void> Application::launch_services()
         }
     }
 
+#if !defined(AK_OS_ANDROID)
     TRY(launch_request_server());
     TRY(launch_image_decoder_server());
     TRY(launch_compositor_process());
+#else
+    // On Android, WebContent binds its own RequestServer/ImageDecoder Android
+    // services directly, so the UI process does not connect to them here.
+    // FIXME: Bind UI-side RequestServer/ImageDecoder connections (needed for
+    //        web workers).
+    TRY(launch_compositor_process());
+#endif
 
     if (m_browser_options.devtools_port.has_value())
         TRY(launch_devtools_server());

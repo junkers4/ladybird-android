@@ -142,6 +142,7 @@ void ConnectionFromWebContent::viewport_size_updated(Web::Compositor::Compositor
 
 void ConnectionFromWebContent::present_frame(Web::Compositor::CompositorContextId context_id, Gfx::IntRect viewport_rect)
 {
+    dbgln("Compositor: present_frame from WC");
     verify_context_is_owned_by_this_connection(context_id);
     m_compositor_state->present_frame(context_id, viewport_rect);
 }

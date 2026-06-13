@@ -161,8 +161,44 @@ ErrorOr<NonnullRefPtr<ImageDecoderClient::Client>> launch_image_decoder_process(
     return launch_server_process<ImageDecoderClient::Client>("ImageDecoder"sv, arguments);
 }
 
+#if defined(AK_OS_ANDROID)
+namespace Android {
+Function<void(int)> bind_compositor_service;
+bool compositor_service_connected = false;
+Vector<Function<void()>> on_compositor_service_connected;
+
+void notify_compositor_service_connected()
+{
+    compositor_service_connected = true;
+    auto callbacks = move(on_compositor_service_connected);
+    for (auto& callback : callbacks)
+        callback();
+}
+}
+
+template<typename ClientType, typename... ClientArgs>
+static ErrorOr<NonnullRefPtr<ClientType>> bind_android_service(Function<void(int)>& bind_hook, ClientArgs&&... client_args)
+{
+    if (!bind_hook)
+        return Error::from_string_literal("Android service bridge is not installed");
+
+    int socket_fds[2] {};
+    TRY(Core::System::socketpair(AF_LOCAL, SOCK_STREAM, 0, socket_fds));
+
+    // NOTE: The Java side takes ownership of the service-side fd.
+    bind_hook(socket_fds[1]);
+
+    auto socket = TRY(Core::LocalSocket::adopt_fd(socket_fds[0]));
+    TRY(socket->set_blocking(true));
+    return try_make_ref_counted<ClientType>(make<IPC::Transport>(move(socket)), forward<ClientArgs>(client_args)...);
+}
+#endif
+
 ErrorOr<NonnullRefPtr<WebView::CompositorClient>> launch_compositor_process()
 {
+#if defined(AK_OS_ANDROID)
+    return bind_android_service<WebView::CompositorClient>(Android::bind_compositor_service);
+#else
     auto const& browser_options = WebView::Application::browser_options();
     auto const& web_content_options = WebView::Application::web_content_options();
 
@@ -181,6 +217,7 @@ ErrorOr<NonnullRefPtr<WebView::CompositorClient>> launch_compositor_process()
     }
 
     return launch_server_process<WebView::CompositorClient>("Compositor"sv, move(arguments));
+#endif
 }
 
 ErrorOr<NonnullRefPtr<WebWorkerClient>> launch_web_worker_process(Web::Bindings::AgentType type, Web::HTML::WorkerAgentId agent_id)

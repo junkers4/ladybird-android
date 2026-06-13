@@ -195,19 +195,7 @@
                         android:layout_width="88dp"
                         android:layout_height="88dp"
                         android:contentDescription="@string/app_name"
-                        android:src="@drawable/ntp_ladybird_logo" />
-
-                    <TextView
-                        android:id="@+id/ntpWordmark"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:fontFamily="sans-serif-medium"
-                        android:letterSpacing="-0.02"
-                        android:text="@string/app_name"
-                        android:textColor="@color/ladybird_on_surface"
-                        android:textSize="22sp"
-                        android:textStyle="bold" />
+                        android:src="@drawable/ntp_logo_white" />
 
                     <!-- Big Chromium-NTP search pill -->
                     <LinearLayout

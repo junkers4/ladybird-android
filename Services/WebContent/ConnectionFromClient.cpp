@@ -188,6 +188,12 @@ void ConnectionFromClient::connect_to_compositor_process(IPC::TransportHandle ha
     m_compositor_connection->on_mouse_event = [this](u64 page_id, Web::MouseEvent event) {
         mouse_event(page_id, move(event));
     };
+
+    // AD-HOC: On Android the compositor service is bound asynchronously, so pages may
+    //         exist (and may have painted) before this connection arrives. Treat the
+    //         late arrival like a reconnect so existing pages re-present their frames.
+    //         On other platforms the connection precedes any page, making this a no-op.
+    compositor_process_reconnected();
 }
 
 void ConnectionFromClient::compositor_process_reconnected()

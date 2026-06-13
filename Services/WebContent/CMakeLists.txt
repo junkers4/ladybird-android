@@ -64,3 +64,4 @@ target_sources(webcontentservice PUBLIC FILE_SET server TYPE HEADERS
           WebContentConsoleClient.h
           WebDriverConnection.h
 )
+

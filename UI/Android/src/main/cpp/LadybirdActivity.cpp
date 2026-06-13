@@ -18,12 +18,12 @@
 #include <LibCore/Timer.h>
 #include <LibFileSystem/FileSystem.h>
 #include <LibWebView/Application.h>
+#include <LibWebView/HelperProcess.h>
 #include <LibWebView/Utilities.h>
 #include <jni.h>
 
 JavaVM* global_vm;
 static OwnPtr<WebView::Application> s_application;
-static OwnPtr<Core::EventLoop> s_main_event_loop;
 static jobject s_java_instance;
 static jmethodID s_schedule_event_loop_method;
 
@@ -75,6 +75,15 @@ Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv* env, jobjec
     VERIFY(clazz);
     s_schedule_event_loop_method = env->GetMethodID(clazz, "scheduleEventLoop", "()V");
     VERIFY(s_schedule_event_loop_method);
+
+    // Install the Android service bridge before the Application is created so
+    // helper-process launches bind Android services instead of fork/exec.
+    auto bind_compositor_method = env->GetMethodID(clazz, "bindCompositorService", "(I)V");
+    VERIFY(bind_compositor_method);
+    WebView::Android::bind_compositor_service = [bind_compositor_method](int fd) {
+        Ladybird::JavaEnvironment env(global_vm);
+        env.get()->CallVoidMethod(s_java_instance, bind_compositor_method, fd);
+    };
     env->DeleteLocalRef(clazz);
 
     jobject timer_service_ref = env->NewGlobalRef(timer_service);
@@ -85,7 +94,6 @@ Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv* env, jobjec
         env.get()->CallVoidMethod(s_java_instance, s_schedule_event_loop_method);
     };
     Core::EventLoopManager::install(*event_loop_manager);
-    s_main_event_loop = make<Core::EventLoop>();
 
     // The strings cannot be empty
     Main::Arguments arguments = {
@@ -101,14 +109,23 @@ Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv* env, jobjec
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_org_serenityos_ladybird_LadybirdActivity_nativeCompositorServiceConnected(JNIEnv*, jobject /* thiz */);
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_serenityos_ladybird_LadybirdActivity_nativeCompositorServiceConnected(JNIEnv*, jobject /* thiz */)
+{
+    WebView::Android::notify_compositor_service_connected();
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_org_serenityos_ladybird_LadybirdActivity_execMainEventLoop(JNIEnv*, jobject /* thiz */);
 
 extern "C" JNIEXPORT void JNICALL
 Java_org_serenityos_ladybird_LadybirdActivity_execMainEventLoop(JNIEnv*, jobject /* thiz */)
 {
-    if (s_main_event_loop) {
-        s_main_event_loop->pump(Core::EventLoop::WaitMode::PollForEvents);
-    }
+    // The main event loop is created by Application::initialize().
+    if (s_application)
+        Core::EventLoop::current().pump(Core::EventLoop::WaitMode::PollForEvents);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -117,7 +134,6 @@ Java_org_serenityos_ladybird_LadybirdActivity_disposeNativeCode(JNIEnv*, jobject
 extern "C" JNIEXPORT void JNICALL
 Java_org_serenityos_ladybird_LadybirdActivity_disposeNativeCode(JNIEnv* env, jobject /* thiz */)
 {
-    s_main_event_loop = nullptr;
     s_schedule_event_loop_method = nullptr;
     s_application = nullptr;
     env->DeleteGlobalRef(s_java_instance);

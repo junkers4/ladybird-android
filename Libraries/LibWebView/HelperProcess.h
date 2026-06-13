@@ -18,6 +18,23 @@
 
 namespace WebView {
 
+#if defined(AK_OS_ANDROID)
+namespace Android {
+// Installed by the Android UI layer (JNI) before WebView::Application is
+// created. Each hook receives the service-side fd of a socketpair and binds
+// the corresponding Android service process.
+WEBVIEW_API extern Function<void(int)> bind_compositor_service;
+
+// Android service binding is asynchronous: the socket fd is only handed to the
+// service once onServiceConnected runs on the (Java) main looper. Synchronous
+// IPC to a service must therefore wait for this notification or it deadlocks
+// the main thread.
+WEBVIEW_API extern bool compositor_service_connected;
+WEBVIEW_API extern Vector<Function<void()>> on_compositor_service_connected;
+WEBVIEW_API void notify_compositor_service_connected();
+}
+#endif
+
 WEBVIEW_API ErrorOr<NonnullRefPtr<WebView::WebContentClient>> launch_web_content_process(u64 initial_page_id);
 
 WEBVIEW_API ErrorOr<NonnullRefPtr<ImageDecoderClient::Client>> launch_image_decoder_process();

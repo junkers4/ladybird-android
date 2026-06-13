@@ -3626,11 +3626,13 @@ void Navigable::paint_next_frame()
         return page().async_scrolling_enabled()
             && compositor_context().should_defer_main_thread_present_for_async_scroll();
     };
-    if (should_defer_main_thread_present_for_async_scroll())
+    if (should_defer_main_thread_present_for_async_scroll()) {
         return;
+    }
 
-    if (!record_display_list_and_scroll_state(paint_config))
+    if (!record_display_list_and_scroll_state(paint_config)) {
         return;
+    }
 
     viewport_rect = page().css_to_device_rect(this->viewport_rect()).to_type<int>();
     if (should_defer_main_thread_present_for_async_scroll()) {

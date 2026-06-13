@@ -15,31 +15,47 @@ set(GENERATED_SOURCES
     CompositorWebContentServerEndpoint.h
 )
 
-add_library(compositorservice STATIC ${SOURCES} ${GENERATED_SOURCES})
+if (ANDROID)
+    # On Android the compositor runs as a bound Android service packaged as a
+    # shared library, like the other helper processes.
+    add_library(compositorservice SHARED ${SOURCES} ${GENERATED_SOURCES}
+        ${LADYBIRD_SOURCE_DIR}/UI/Android/src/main/cpp/CompositorService.cpp
+        ${LADYBIRD_SOURCE_DIR}/UI/Android/src/main/cpp/LadybirdServiceBaseJNI.cpp
+    )
+    target_link_libraries(compositorservice PRIVATE android LibMain LibFileSystem LibWebView)
+else()
+    add_library(compositorservice STATIC ${SOURCES} ${GENERATED_SOURCES})
+endif()
 ladybird_generated_sources(compositorservice)
 
-add_executable(Compositor main.cpp)
+if (NOT ANDROID)
+    add_executable(Compositor main.cpp)
 
-if (LINUX)
-    target_sources(Compositor PRIVATE SandboxLinux.cpp)
-elseif (APPLE)
-    target_sources(Compositor PRIVATE SandboxMacOS.cpp)
-else()
-    target_sources(Compositor PRIVATE SandboxUnimplemented.cpp)
+    if (LINUX)
+        target_sources(Compositor PRIVATE SandboxLinux.cpp)
+    elseif (APPLE)
+        target_sources(Compositor PRIVATE SandboxMacOS.cpp)
+    else()
+        target_sources(Compositor PRIVATE SandboxUnimplemented.cpp)
+    endif()
 endif()
 
 target_include_directories(compositorservice PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/../..)
 target_include_directories(compositorservice PRIVATE ${LADYBIRD_SOURCE_DIR}/Services/)
 
-target_link_libraries(Compositor PRIVATE compositorservice LibCore LibMain LibSandbox LibWebView)
+if (NOT ANDROID)
+    target_link_libraries(Compositor PRIVATE compositorservice LibCore LibMain LibSandbox LibWebView)
+endif()
 target_link_libraries(compositorservice PRIVATE LibCore LibGfx LibIPC LibMedia LibSync LibWeb)
 
 if (APPLE)
     target_link_libraries(Compositor PRIVATE "-framework CoreGraphics" "-framework CoreVideo")
 endif()
 
+
 if (WIN32)
     target_include_directories(Compositor PRIVATE $<BUILD_INTERFACE:${PTHREAD_INCLUDE_DIR}>)
     target_include_directories(compositorservice PRIVATE $<BUILD_INTERFACE:${PTHREAD_INCLUDE_DIR}>)
     ladybird_windows_bin(Compositor CONSOLE)
 endif()
+

@@ -54,6 +54,9 @@ public:
     jobject java_instance() const { return m_java_instance; }
 
 private:
+    void handle_resize_when_compositor_ready();
+    bool m_pending_compositor_resize { false };
+
     jobject m_java_instance = nullptr;
     Web::DevicePixelSize m_viewport_size;
 };
