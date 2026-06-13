@@ -19,12 +19,11 @@ enum class SearchEngine(val displayName: String, val template: String) {
     companion object {
         fun from(name: String?): SearchEngine = entries.firstOrNull { it.name == name } ?: DEFAULT
 
-        // Google's anti-bot pipeline (the sorry/index interstitial that wants a
-        // `solveSimpleChallenge` helper Ladybird does not implement) blocks
-        // search results on most mobile/CGNAT networks no matter the UA. Default
-        // to DuckDuckGo — like privacy-focused Chromium builds — so the omnibox
-        // actually returns results. Google stays available in Settings.
-        val DEFAULT = DuckDuckGo
+        // Google's anti-bot pipeline blocks results on most mobile networks, and
+        // the JS-heavy duckduckgo.com SPA renders blank while Ladybird's engine
+        // matures. Default to the no-JS html.duckduckgo.com endpoint, which
+        // returns fully-rendered results. Other engines stay available in Settings.
+        val DEFAULT = DuckDuckGoHtml
     }
 }
 
@@ -114,6 +113,11 @@ class AppSettings(context: Context) {
             val search = prefs.getString(KEY_SEARCH, null)
             if (search == null || search == SearchEngine.Google.name)
                 editor.putString(KEY_SEARCH, SearchEngine.DEFAULT.name)
+            // v4: the JS-heavy duckduckgo.com SPA renders as a blank white page in
+            // the current engine. Move anyone on that endpoint to the no-JS
+            // html.duckduckgo.com endpoint, which renders results correctly.
+            if (search == SearchEngine.DuckDuckGo.name)
+                editor.putString(KEY_SEARCH, SearchEngine.DuckDuckGoHtml.name)
             editor.putInt(KEY_SETTINGS_VERSION, CURRENT_SETTINGS_VERSION)
             editor.apply()
         }
@@ -172,6 +176,6 @@ class AppSettings(context: Context) {
         private const val KEY_NAV_COMPAT = "navigator_compat"
         private const val KEY_PINCH = "pinch_zoom_enabled"
         private const val KEY_SETTINGS_VERSION = "settings_version"
-        private const val CURRENT_SETTINGS_VERSION = 3
+        private const val CURRENT_SETTINGS_VERSION = 4
     }
 }

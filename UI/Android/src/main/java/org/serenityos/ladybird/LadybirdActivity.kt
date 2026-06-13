@@ -189,7 +189,6 @@ class LadybirdActivity : AppCompatActivity() {
         }
 
         urlEditText.setOnEditorActionListener { textView: TextView, actionId: Int, keyEvent: KeyEvent? ->
-            Log.i("LadybirdOmni", "editorAction actionId=$actionId keyCode=${keyEvent?.keyCode} action=${keyEvent?.action} text='${textView.text}'")
             val isImeSubmit = actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_SEARCH
             val isHardwareEnter = keyEvent?.keyCode == KeyEvent.KEYCODE_ENTER && keyEvent.action == KeyEvent.ACTION_DOWN
             if (isImeSubmit || isHardwareEnter) {
@@ -211,7 +210,6 @@ class LadybirdActivity : AppCompatActivity() {
         // clearly visible, then focuses it.  leaveOmniboxEditMode() restores the
         // overlay if the user cancels without navigating.
         val ntpFocusHandler = View.OnClickListener {
-            Log.i("LadybirdOmni", "ntp pill tapped -> enter edit mode")
             binding.newTabOverlay.visibility = View.GONE
             binding.urlBarCard.visibility = View.VISIBLE
             enterOmniboxEditMode()
@@ -275,7 +273,6 @@ class LadybirdActivity : AppCompatActivity() {
 
     private fun navigateToInput(input: String) {
         val url = resolveTarget(input)
-        Log.i("LadybirdOmni", "navigateToInput input='$input' -> url='$url'")
         urlEditText.setText(if (isNewTabUrl(url)) "" else url, TextView.BufferType.EDITABLE)
         leaveOmniboxEditMode()
         setLoading(true)
@@ -450,12 +447,11 @@ class LadybirdActivity : AppCompatActivity() {
     }
 
     private fun enterOmniboxEditMode() {
-        val gotFocus = urlEditText.requestFocus()
+        urlEditText.requestFocus()
         urlEditText.post {
             urlEditText.setSelection(urlEditText.text.length)
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            val shown = imm.showSoftInput(urlEditText, InputMethodManager.SHOW_IMPLICIT)
-            Log.i("LadybirdOmni", "enterOmniboxEditMode requestFocus=$gotFocus isFocused=${urlEditText.isFocused} showSoftInput=$shown")
+            imm.showSoftInput(urlEditText, InputMethodManager.SHOW_IMPLICIT)
         }
     }
 
