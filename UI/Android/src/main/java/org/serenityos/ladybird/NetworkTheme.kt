@@ -27,18 +27,19 @@ enum class NetworkTheme(
         R.color.net_tor,
         R.color.net_tor_dark,
         R.color.net_tor_on,
-        R.drawable.ic_shield,
+        R.drawable.ic_tor_onion_img,
     ),
     I2P(
         NetworkMode.I2P,
         R.color.net_i2p,
         R.color.net_i2p_dark,
         R.color.net_i2p_on,
-        R.drawable.ic_lock,
+        R.drawable.ic_i2p_mascot_img,
     );
 
-    /** All compartment icons are plain monochrome glyphs, tinted to the bar colour. */
-    val tintIcon: Boolean get() = true
+    /** Tor onion and I2P mascot are full-colour images; only the plain globe
+     *  (Normal) is a monochrome glyph that should be tinted to the bar colour. */
+    val tintIcon: Boolean get() = this == Normal
 
     companion object {
         fun of(mode: NetworkMode): NetworkTheme = entries.first { it.mode == mode }
