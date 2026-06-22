@@ -22,6 +22,7 @@ class WebViewImplementation(private val view: WebView) {
     private var nativeInstance: Long = 0
     private lateinit var resourceDir: String
     private var connection: ServiceConnection? = null
+    private var lastProxySpec: String? = null
 
     fun initialize(resourceDir: String) {
         this.resourceDir = resourceDir
@@ -117,6 +118,28 @@ class WebViewImplementation(private val view: WebView) {
         if (nativeInstance == 0L)
             return
         nativeRunJavascript(nativeInstance, js)
+    }
+
+    /**
+     * Routing hook for the network compartments (Normal / Tor / I2P).
+     *
+     * [type] is null for a direct connection, or "socks5" / "http"; [host] and
+     * [port] point at the local Tor/I2P daemon. For now this records the intended
+     * proxy and asks the engine via a debug request; the RequestServer-side proxy
+     * support and the bundled daemons are wired in a later step. Keeping the call
+     * here means the UI is already complete and only the backend remains.
+     */
+    fun setNetworkProxy(type: String?, host: String?, port: Int) {
+        val spec = if (type == null || host == null) "" else "$type://$host:$port"
+        if (spec == lastProxySpec)
+            return
+        lastProxySpec = spec
+        android.util.Log.i("LadybirdNet", "network proxy -> ${spec.ifEmpty { "direct" }}")
+        if (nativeInstance == 0L)
+            return
+        // The engine ignores an unknown debug request, so this is safe before the
+        // RequestServer proxy support lands.
+        nativeDebugRequest(nativeInstance, "set-proxy", spec)
     }
 
     fun selectAllOnPage() {

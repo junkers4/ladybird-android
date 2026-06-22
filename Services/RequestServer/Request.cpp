@@ -794,6 +794,22 @@ void Request::handle_dns_lookup_state()
     auto host = m_url.serialized_host().to_byte_string();
     auto const& dns_info = DNSInfo::the();
 
+    // When a proxy is configured, let the proxy resolve the hostname rather than
+    // our local DNS resolver — required for .i2p eepsites and .onion services,
+    // which have no public DNS (otherwise the request fails with
+    // "Unable to resolve host" before it ever reaches the proxy).
+    bool const proxy_active = (getenv("LADYBIRD_PROXY") && *getenv("LADYBIRD_PROXY"))
+        || m_proxy_data.type == Core::ProxyData::Type::SOCKS5;
+    if (proxy_active) {
+        if (first_is_one_of(m_type, RequestType::Fetch, RequestType::BackgroundRevalidation))
+            transition_to_state(State::RetrieveCookie);
+        else if (m_type == RequestType::Connect && m_connect_cache_level == CacheLevel::CreateConnection)
+            transition_to_state(State::Connect);
+        else
+            transition_to_state(State::Complete);
+        return;
+    }
+
     mark_lifecycle_event(this, &WireStats::dns_started_at);
 
     m_resolver->dns.lookup(host, DNS::Messages::Class::IN, { DNS::Messages::ResourceType::A, DNS::Messages::ResourceType::AAAA }, { .validate_dnssec_locally = dns_info.validate_dnssec_locally })
@@ -859,14 +875,17 @@ void Request::handle_connect_state()
     set_option(CURLOPT_CONNECTTIMEOUT, s_connect_timeout_seconds);
     set_option(CURLOPT_CONNECT_ONLY, 1L);
 
-    // Pre-populate the multi's hostcache so libcurl skips its threaded resolver entirely.
-    VERIFY(m_dns_result);
-    auto formatted_address = build_curl_resolve_list(*m_dns_result, m_url.serialized_host(), m_url.port_or_default());
-    if (curl_slist* resolve_list = curl_slist_append(nullptr, formatted_address.characters())) {
-        set_option(CURLOPT_RESOLVE, resolve_list);
-        m_curl_string_lists.append(resolve_list);
-    } else {
-        VERIFY_NOT_REACHED();
+    // Pre-populate the multi's hostcache so libcurl skips its threaded resolver
+    // entirely — unless a proxy is in use, where we skipped local DNS and let the
+    // proxy resolve instead.
+    if (m_dns_result) {
+        auto formatted_address = build_curl_resolve_list(*m_dns_result, m_url.serialized_host(), m_url.port_or_default());
+        if (curl_slist* resolve_list = curl_slist_append(nullptr, formatted_address.characters())) {
+            set_option(CURLOPT_RESOLVE, resolve_list);
+            m_curl_string_lists.append(resolve_list);
+        } else {
+            VERIFY_NOT_REACHED();
+        }
     }
 
     mark_lifecycle_event(this, &WireStats::curl_added_at);
@@ -970,8 +989,23 @@ void Request::handle_fetch_state()
         m_curl_string_lists.append(curl_headers);
     }
 
-    // FIXME: Set up proxy if applicable
-    (void)m_proxy_data;
+    // Route through a proxy when configured. Two sources, in priority order:
+    //  1. LADYBIRD_PROXY env var (e.g. "socks5://127.0.0.1:9050" for Tor or
+    //     "http://127.0.0.1:4444" for I2P) — a process-wide override the Android
+    //     app sets to put the whole compartment behind a local daemon. curl
+    //     parses the scheme/host/port itself.
+    //  2. Otherwise the per-request SOCKS5 ProxyData, if any.
+    if (char const* env_proxy = getenv("LADYBIRD_PROXY"); env_proxy && *env_proxy) {
+        // Prefer socks5h (DNS resolved by the proxy) so .onion resolves through
+        // Tor and the destination hostname never leaks to the local resolver.
+        ByteString spec = env_proxy;
+        if (spec.starts_with("socks5://"sv))
+            spec = ByteString::formatted("socks5h://{}", spec.substring_view(9));
+        set_option(CURLOPT_PROXY, spec.characters());
+    } else if (m_proxy_data.type == Core::ProxyData::Type::SOCKS5) {
+        auto proxy = ByteString::formatted("socks5h://{}:{}", m_proxy_data.host_ipv4, m_proxy_data.port);
+        set_option(CURLOPT_PROXY, proxy.characters());
+    }
 
     set_option(CURLOPT_HEADERFUNCTION, &on_header_received);
     set_option(CURLOPT_HEADERDATA, this);
@@ -985,14 +1019,16 @@ void Request::handle_fetch_state()
         set_option(CURLOPT_XFERINFODATA, this);
     }
 
-    VERIFY(m_dns_result);
-    auto formatted_address = build_curl_resolve_list(*m_dns_result, m_url.serialized_host(), m_url.port_or_default());
-
-    if (curl_slist* resolve_list = curl_slist_append(nullptr, formatted_address.characters())) {
-        set_option(CURLOPT_RESOLVE, resolve_list);
-        m_curl_string_lists.append(resolve_list);
-    } else {
-        VERIFY_NOT_REACHED();
+    // With a proxy we skipped local DNS, so there is no pre-resolved address to
+    // hand curl; let curl/the proxy resolve. Otherwise pre-populate the hostcache.
+    if (m_dns_result) {
+        auto formatted_address = build_curl_resolve_list(*m_dns_result, m_url.serialized_host(), m_url.port_or_default());
+        if (curl_slist* resolve_list = curl_slist_append(nullptr, formatted_address.characters())) {
+            set_option(CURLOPT_RESOLVE, resolve_list);
+            m_curl_string_lists.append(resolve_list);
+        } else {
+            VERIFY_NOT_REACHED();
+        }
     }
 
     mark_lifecycle_event(this, &WireStats::curl_added_at);

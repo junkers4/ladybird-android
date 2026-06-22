@@ -585,6 +585,14 @@ void Application::register_compositor_context(WebContentClient& web_content_clie
     m_compositor_client->create_context(context_id, page_id, *web_content_connection_id);
 }
 
+void Application::destroy_compositor_context(Web::Compositor::CompositorContextId context_id)
+{
+    if (!can_send_compositor_process_ipc(m_compositor_client))
+        return;
+    VERIFY(m_compositor_client);
+    m_compositor_client->async_destroy_context(context_id);
+}
+
 ErrorOr<void> Application::try_register_compositor_context(WebContentClient& web_content_client, Web::Compositor::CompositorContextId context_id, Optional<u64> page_id)
 {
     if (!m_compositor_client)

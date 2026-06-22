@@ -223,8 +223,17 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
         viewImpl.debugRequest("scripting", if (enabled) "on" else "off")
     }
 
+    fun setContentBlockingEnabled(enabled: Boolean) {
+        viewImpl.debugRequest("content-blocking", if (enabled) "on" else "off")
+    }
+
     fun clearCache() {
         viewImpl.debugRequest("clear-cache")
+    }
+
+    /** Clear cookies created within the last [seconds] (0 = all cookies). */
+    fun clearCookies(seconds: Long) {
+        viewImpl.debugRequest("clear-cookies", seconds.toString())
     }
 
     fun collectGarbage() {
@@ -233,6 +242,11 @@ class WebView(context: Context, attributeSet: AttributeSet) : View(context, attr
 
     fun setPinchZoomEnabled(enabled: Boolean) {
         pinchZoomEnabled = enabled
+    }
+
+    /** Route traffic through the active network compartment's proxy (or direct). */
+    fun setNetworkProxy(type: String?, host: String?, port: Int) {
+        viewImpl.setNetworkProxy(type, host, port)
     }
 
     fun stopScrolling() {

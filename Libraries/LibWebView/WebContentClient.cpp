@@ -123,6 +123,11 @@ bool WebContentClient::forget_compositor_context(Web::Compositor::CompositorCont
 {
     if (!m_compositor_contexts.remove(context_id))
         return false;
+    // Tell the compositor to release the context too. Previously we only
+    // dropped our client-side bookkeeping, so the compositor leaked the context
+    // and a later create_context for the same (deterministic per-page) id hit a
+    // VERIFY and crashed the Compositor process.
+    Application::the().destroy_compositor_context(context_id);
     return true;
 }
 

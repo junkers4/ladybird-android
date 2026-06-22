@@ -12,6 +12,8 @@ import android.os.IBinder
 import android.os.Message
 import android.os.Messenger
 import android.os.ParcelFileDescriptor
+import android.os.RemoteException
+import android.util.Log
 
 class LadybirdServiceConnection(
     private var ipcFd: Int,
@@ -32,15 +34,27 @@ class LadybirdServiceConnection(
         service = Messenger(svc)
         boundToService = true
 
-        val init = Message.obtain(null, MSG_SET_RESOURCE_ROOT)
-        init.data.putString("PATH", resourceDir)
-        service!!.send(init)
+        // The remote service process can already be gone here (e.g. it died
+        // during a previous Activity teardown and this is a stale connection
+        // firing on relaunch). A failed send() would otherwise throw
+        // DeadObjectException and crash the app; treat it as a disconnect.
+        try {
+            val init = Message.obtain(null, MSG_SET_RESOURCE_ROOT)
+            init.data.putString("PATH", resourceDir)
+            service!!.send(init)
 
-        val parcel = ParcelFileDescriptor.adoptFd(ipcFd)
-        val msg = Message.obtain(null, MSG_TRANSFER_SOCKET)
-        msg.data.putParcelable("IPC_SOCKET", parcel)
-        service!!.send(msg)
-        parcel.detachFd()
+            val parcel = ParcelFileDescriptor.adoptFd(ipcFd)
+            val msg = Message.obtain(null, MSG_TRANSFER_SOCKET)
+            msg.data.putParcelable("IPC_SOCKET", parcel)
+            service!!.send(msg)
+            parcel.detachFd()
+        } catch (e: RemoteException) {
+            Log.w("Ladybird", "service died during connect handshake", e)
+            service = null
+            boundToService = false
+            onDisconnect()
+            return
+        }
 
         onConnect()
     }

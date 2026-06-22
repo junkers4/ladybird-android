@@ -64,3 +64,4 @@ Meta/CMake/vcpkg/user-variables.cmake
 .DS_Store
 
 __pycache__
+UI/Android/classes.dex

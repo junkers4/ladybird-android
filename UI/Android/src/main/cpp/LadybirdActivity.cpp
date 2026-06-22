@@ -70,6 +70,11 @@ Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv* env, jobjec
     env->GetJavaVM(&global_vm);
     VERIFY(global_vm);
 
+    // The Java Activity instance changes across Activity recreation (and across
+    // repeated instrumentation launches in a single process), so always rebind
+    // it, releasing the previous global reference first.
+    if (s_java_instance)
+        env->DeleteGlobalRef(s_java_instance);
     s_java_instance = env->NewGlobalRef(thiz);
     jclass clazz = env->GetObjectClass(s_java_instance);
     VERIFY(clazz);
@@ -85,6 +90,14 @@ Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv* env, jobjec
         env.get()->CallVoidMethod(s_java_instance, bind_compositor_method, fd);
     };
     env->DeleteLocalRef(clazz);
+
+    // The event loop manager and the Application are process-global and must be
+    // installed exactly once. On Activity recreation we have just rebound the
+    // Java instance above and reuse the existing native runtime; installing the
+    // event loop manager or creating the Application a second time would abort
+    // the process (this previously crashed on any in-process Activity relaunch).
+    if (s_application)
+        return;
 
     jobject timer_service_ref = env->NewGlobalRef(timer_service);
 
@@ -134,9 +147,16 @@ Java_org_serenityos_ladybird_LadybirdActivity_disposeNativeCode(JNIEnv*, jobject
 extern "C" JNIEXPORT void JNICALL
 Java_org_serenityos_ladybird_LadybirdActivity_disposeNativeCode(JNIEnv* env, jobject /* thiz */)
 {
-    s_schedule_event_loop_method = nullptr;
-    s_application = nullptr;
-    env->DeleteGlobalRef(s_java_instance);
-
-    delete &Core::EventLoopManager::the();
+    // Release only the per-Activity Java instance; null it so a later
+    // initNativeCode doesn't double-delete a freed global ref (CheckJNI aborts
+    // on that). Keep the process-global event loop manager and Application
+    // ALIVE: tearing them down here left EventLoopManager's static pointer
+    // dangling (it isn't reset to null), so the next launch's
+    // EventLoopManager::install() VERIFY(!already-installed) aborted. Keeping
+    // them lets initNativeCode's `if (s_application) return` fast-path reuse the
+    // existing runtime on Activity recreation / repeated in-process launches.
+    if (s_java_instance) {
+        env->DeleteGlobalRef(s_java_instance);
+        s_java_instance = nullptr;
+    }
 }

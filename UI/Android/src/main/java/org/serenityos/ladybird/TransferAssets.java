@@ -37,27 +37,48 @@ public class TransferAssets {
     static public String transferAssets(Context context) throws IOException {
         Context applicationContext = context.getApplicationContext();
         File assetDir = applicationContext.getFilesDir();
-        if (isExtractionComplete(assetDir)) {
-            return assetDir.getAbsolutePath();
-        }
-        if (hasLegacyExtractedAssets(assetDir)) {
-            createExtractionMarker(assetDir);
+        long versionCode = appVersionCode(applicationContext);
+        if (isExtractionComplete(assetDir, versionCode)) {
             return assetDir.getAbsolutePath();
         }
 
+        // Either a first run or an app update: re-extract so bundled assets
+        // (resources, fonts, filter lists, …) match the installed APK version.
         cleanupIncompleteExtraction(assetDir);
 
         AssetManager assetManager = applicationContext.getAssets();
         extractArchive(assetManager, assetDir);
         mergeSystemCertificates(assetDir);
-        createExtractionMarker(assetDir);
+        createExtractionMarker(assetDir, versionCode);
         Log.d(TAG, "Extracted assets directly from APK into app-specific storage");
         return assetDir.getAbsolutePath();
     }
 
-    private static boolean isExtractionComplete(File assetDir) {
-        return new File(assetDir, EXTRACTION_MARKER).exists()
-            && hasLegacyExtractedAssets(assetDir);
+    private static long appVersionCode(Context context) {
+        try {
+            android.content.pm.PackageInfo info = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            return android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P
+                ? info.getLongVersionCode()
+                : info.versionCode;
+        } catch (android.content.pm.PackageManager.NameNotFoundException exception) {
+            return -1;
+        }
+    }
+
+    // The extraction is current only when the marker exists, the core files are
+    // present, and the marker records the *current* app version — so an update
+    // (which may ship new assets) forces a fresh extraction.
+    private static boolean isExtractionComplete(File assetDir, long versionCode) {
+        File marker = new File(assetDir, EXTRACTION_MARKER);
+        if (!marker.exists() || !hasLegacyExtractedAssets(assetDir)) {
+            return false;
+        }
+        try {
+            String recorded = new String(Files.readAllBytes(marker.toPath())).trim();
+            return recorded.equals(Long.toString(versionCode));
+        } catch (IOException exception) {
+            return false;
+        }
     }
 
     private static boolean hasLegacyExtractedAssets(File assetDir) {
@@ -129,10 +150,11 @@ public class TransferAssets {
         deleteIfExists(new File(assetDir, EXTRACTION_MARKER));
     }
 
-    private static void createExtractionMarker(File assetDir) throws IOException {
+    private static void createExtractionMarker(File assetDir, long versionCode) throws IOException {
         File marker = new File(assetDir, EXTRACTION_MARKER);
-        if (!marker.createNewFile() && !marker.exists()) {
-            throw new IOException("Unable to create extraction marker " + marker);
+        // Record the app version so an upgrade re-extracts the new assets.
+        try (OutputStream output = new BufferedOutputStream(new FileOutputStream(marker), IO_BUFFER_SIZE)) {
+            output.write(Long.toString(versionCode).getBytes());
         }
     }
 

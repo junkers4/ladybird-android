@@ -64,3 +64,24 @@
 -keep class org.serenityos.ladybird.TimerExecutorService$Timer {
 	<init>(long);
 }
+
+# --- Tor (Guardian Project) ---
+# libtor.so reaches back into TorService via JNI by name (e.g. the native
+# methods and the `torConfiguration` field used by mainConfigurationFree).
+# R8 must not rename or strip any of it, or the native lookups throw
+# NoSuchFieldError / UnsatisfiedLinkError at runtime in release builds.
+-keep class org.torproject.jni.** { *; }
+-keepclasseswithmembernames class org.torproject.jni.** {
+	native <methods>;
+}
+# jtorctl control connection used by TorService.
+-keep class net.freehaven.tor.control.** { *; }
+
+# --- I2P (embedded i2pd) ---
+# libi2pd.so resolves its JNI entry points against this exact class + native
+# method names (Java_org_purplei2p_i2pd_I2PD_1JNI_*); R8 must not rename or
+# strip them, or System.loadLibrary/startDaemon will crash.
+-keep class org.purplei2p.i2pd.** { *; }
+-keepclasseswithmembernames class org.purplei2p.i2pd.** {
+    native <methods>;
+}

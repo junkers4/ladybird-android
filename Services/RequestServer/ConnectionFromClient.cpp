@@ -263,6 +263,20 @@ void ConnectionFromClient::start_request(u64 request_id, ByteString method, URL:
     note_event_tick("ipc-start-request"sv);
     dbgln_if(REQUESTSERVER_DEBUG, "RequestServer: start_request({}, {})", request_id, url);
 
+    // Ad/tracker blocking lives in the renderer now (LibWeb's ContentBlocker, which
+    // also handles cosmetic filtering), so RequestServer no longer filters here.
+
+    // Global Privacy Control: tell sites we opt out of sale/sharing of our data
+    // (the modern successor to Do Not Track). Sent on every http(s) request, like
+    // Brave does by default.
+    if (url.scheme().is_one_of("http"sv, "https"sv)) {
+        auto already_present = request_headers.first_matching([](auto& header) {
+            return header.name.equals_ignoring_ascii_case("Sec-GPC"sv);
+        }).has_value();
+        if (!already_present)
+            request_headers.append({ "Sec-GPC", "1" });
+    }
+
     if constexpr (REQUESTSERVER_WIRE_DEBUG) {
         auto now = MonotonicTime::now();
         if (m_burst_window_started_at.has_value() && (now - *m_burst_window_started_at).to_milliseconds() < BURST_WINDOW_MS) {

@@ -65,7 +65,16 @@ void CompositorState::destroy_contexts_for_web_content_client(CompositorStateWeb
 
 void CompositorState::create_context(Web::Compositor::CompositorContextId context_id, Optional<u64> page_id, CompositorStateWebContentClient& web_content_client)
 {
-    VERIFY(!m_contexts.contains(context_id));
+    // A create_context can arrive for an id that already exists: a page can be
+    // unregistered on the client (WebContentClient::forget_compositor_context)
+    // without the compositor ever being told to destroy its context, so the
+    // deterministic per-page id collides when a page is recreated (e.g. SPA
+    // navigation on sites like YouTube). Asserting here would kill the whole
+    // Compositor process; instead drop the stale context and recreate cleanly.
+    if (m_contexts.contains(context_id)) {
+        dbgln("Compositor: create_context for an existing context id; recreating");
+        destroy_context(context_id);
+    }
     if (page_id.has_value())
         VERIFY(context_id == Web::Compositor::compositor_context_id_for_page(*page_id));
 
@@ -88,6 +97,12 @@ void CompositorState::destroy_context(Web::Compositor::CompositorContextId conte
         child_context->did_detach_from_parent_surface(context_id, child_context_entry.surface_id);
     }
     m_contexts.remove(context_id);
+}
+
+void CompositorState::destroy_context_if_present(Web::Compositor::CompositorContextId context_id)
+{
+    if (m_contexts.contains(context_id))
+        destroy_context(context_id);
 }
 
 void CompositorState::set_presentation_mode(Web::Compositor::CompositorContextId context_id, Web::Compositor::PresentationMode presentation_mode)

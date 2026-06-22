@@ -39,11 +39,28 @@ else()
 
     find_package(FFMPEG REQUIRED)
 
-    # vcpkg's openh264.pc advertises -lc++, which pkgconf resolves to the host
-    # NDK's x86_64 libc++.so — linking that into aarch64 targets fails with
-    # "incompatible with aarch64linux". The real C++ runtime (c++_shared) is
-    # already provided by ANDROID_STL, so just drop the bogus host path.
-    list(FILTER FFMPEG_LIBRARIES EXCLUDE REGEX "/toolchains/llvm/prebuilt/[^;]*/lib/libc\\+\\+\\.so$")
+    # vcpkg's codec .pc files (openh264, dav1d, theora, vpx) advertise "-lc++",
+    # which pkgconf resolves to the host NDK's x86_64 libc++.so. Linking that into
+    # aarch64 targets fails with "incompatible with aarch64linux". The real C++
+    # runtime (c++_shared) is already provided by ANDROID_STL, so scrub the host
+    # path everywhere the FFmpeg dependency graph carries it.
+    #
+    # The host path is hidden inside the PkgConfig::* IMPORTED targets that FFmpeg
+    # pulls in (e.g. PkgConfig::openh264), not in FFMPEG_LIBRARIES itself — so a
+    # plain list filter never reaches it. Rewrite each imported target's link
+    # interface, mirroring the skia workaround below.
+    set(_ladybird_host_libcxx_regex "/toolchains/llvm/prebuilt/[^;]*/lib/libc\\+\\+\\.so$")
+    list(FILTER FFMPEG_LIBRARIES EXCLUDE REGEX "${_ladybird_host_libcxx_regex}")
+    set(FFMPEG_LIBRARIES "${FFMPEG_LIBRARIES}" CACHE STRING "FFmpeg libraries (host libc++ filtered out)" FORCE)
+    foreach(_pc_target IN ITEMS PkgConfig::openh264 PkgConfig::dav1d PkgConfig::theora PkgConfig::vpx)
+        if (TARGET ${_pc_target})
+            get_target_property(_pc_libs ${_pc_target} INTERFACE_LINK_LIBRARIES)
+            if (_pc_libs)
+                list(FILTER _pc_libs EXCLUDE REGEX "${_ladybird_host_libcxx_regex}")
+                set_property(TARGET ${_pc_target} PROPERTY INTERFACE_LINK_LIBRARIES ${_pc_libs})
+            endif()
+        endif()
+    endforeach()
 endif()
 
 if (NOT APPLE AND NOT ANDROID AND NOT WIN32)

@@ -23,4 +23,23 @@
 
     <color name="ladybird_progress">#FF0B57D0</color>
     <color name="ladybird_chip">#FFFFFFFF</color>
+
+    <!-- Site time-limit bar turns red once the daily cap is reached. -->
+    <color name="limit_reached">#FFD93025</color>
+
+    <!-- Network-compartment accents. The app bar, URL bar and logo recolor to
+         these when a mode is active, so the compartment is always visible. -->
+
+    <!-- Tor: purple (light / base / dark). -->
+    <color name="net_tor_light">#FFEDE7F6</color>
+    <color name="net_tor">#FF7D4698</color>
+    <color name="net_tor_dark">#FF4A2A6A</color>
+    <color name="net_tor_on">#FFFFFFFF</color>
+
+    <!-- I2P: brand red / green / yellow. -->
+    <color name="net_i2p_light">#FFFFF3E0</color>
+    <color name="net_i2p">#FFD7282F</color>
+    <color name="net_i2p_dark">#FF2E7D32</color>
+    <color name="net_i2p_yellow">#FFF5C518</color>
+    <color name="net_i2p_on">#FFFFFFFF</color>
 </resources>

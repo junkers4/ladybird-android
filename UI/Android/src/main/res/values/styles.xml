@@ -207,16 +207,30 @@
         <item name="android:tint">@color/ladybird_on_surface</item>
     </style>
 
-    <!-- Chrome-style settings rows -->
+    <!-- Vanadium-style grouped settings. Sections read as a muted header above
+         a rounded surface_variant card; each row lives inside the card. -->
     <style name="Chromium.SettingsHeader" parent="">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:paddingStart">20dp</item>
-        <item name="android:paddingTop">22dp</item>
-        <item name="android:paddingBottom">8dp</item>
-        <item name="android:textColor">@color/ladybird_accent</item>
+        <item name="android:paddingStart">28dp</item>
+        <item name="android:paddingEnd">28dp</item>
+        <item name="android:paddingTop">24dp</item>
+        <item name="android:paddingBottom">10dp</item>
+        <item name="android:textColor">@color/ladybird_on_surface_muted</item>
         <item name="android:textSize">14sp</item>
         <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Rounded card that groups the rows of one section. -->
+    <style name="Chromium.SettingsGroup" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:background">@drawable/bg_settings_group</item>
+        <item name="android:layout_marginStart">16dp</item>
+        <item name="android:layout_marginEnd">16dp</item>
+        <item name="android:paddingTop">4dp</item>
+        <item name="android:paddingBottom">4dp</item>
     </style>
 
     <style name="Chromium.SettingsRow" parent="">

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Vanadium-style grouped settings card: a rounded surface that sits one
+     elevation step above the page background (surface_variant on surface),
+     so each section reads as a distinct card like Vanadium/modern Chrome. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/ladybird_surface" />
-    <corners android:radius="14dp" />
+    <solid android:color="@color/ladybird_surface_variant" />
+    <corners android:radius="20dp" />
 </shape>

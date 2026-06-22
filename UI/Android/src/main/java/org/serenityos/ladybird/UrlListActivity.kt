@@ -45,15 +45,7 @@ class UrlListActivity : AppCompatActivity() {
         binding.clearAllRow.visibility = if (isHistory) View.VISIBLE else View.GONE
         binding.clearAllDivider.visibility = binding.clearAllRow.visibility
         binding.clearAllRow.setOnClickListener {
-            MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.history_clear)
-                .setPositiveButton(R.string.dialog_clear) { _, _ ->
-                    HistoryStore(this).clear()
-                    reload()
-                    Toast.makeText(this, R.string.history_cleared, Toast.LENGTH_SHORT).show()
-                }
-                .setNegativeButton(R.string.dialog_cancel, null)
-                .show()
+            startActivity(Intent(this, DeleteBrowsingDataActivity::class.java))
         }
 
         binding.urlList.layoutManager = LinearLayoutManager(this)

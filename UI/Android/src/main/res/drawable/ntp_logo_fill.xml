@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The NTP logo as a bottom-up clip: setImageLevel(0..10000) reveals that
+     fraction of the logo from the bottom. Tinted to the compartment colour and
+     overlaid on the dim base logo, it "fills up" as Tor/I2P bootstraps. -->
+<clip xmlns:android="http://schemas.android.com/apk/res/android"
+    android:clipOrientation="vertical"
+    android:drawable="@drawable/ntp_logo_white"
+    android:gravity="bottom" />

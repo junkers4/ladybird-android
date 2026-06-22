@@ -93,6 +93,34 @@
     <string name="dialog_clear">Clear</string>
     <string name="dialog_reset">Reset</string>
     <string name="dialog_done">Done</string>
+    <string name="dialog_remove">Remove</string>
+    <string name="dialog_save">Save</string>
+
+    <string name="settings_language">Language</string>
+    <string name="delete_data_action">Delete data</string>
+    <string name="usage_title">Today\'s usage</string>
+    <string name="limits_view_usage">View usage</string>
+    <string name="limits_title">Site time limits</string>
+    <string name="limits_enabled">Limit my time on sites</string>
+    <string name="limits_add">Add</string>
+    <string name="limits_empty">No time limits yet.\nAdd a site to cap how long you spend on it each day.</string>
+    <string name="limits_subtitle_zero">No sites limited</string>
+    <string name="limits_subtitle_one">1 site limited</string>
+    <string name="limits_subtitle_many">%1$d sites limited</string>
+    <string name="limits_usage">%1$d of %2$d min used today</string>
+    <string name="limits_usage_reached">Limit reached — %1$d min used today</string>
+    <string name="limits_field_site">Site (e.g. youtube.com)</string>
+    <string name="limits_field_minutes">Minutes per day</string>
+    <string name="limits_add_title">Add a site limit</string>
+
+    <string name="bg_audio_title">Background playback</string>
+    <string name="bg_audio_summary">Let these sites keep playing audio when you leave the app or lock the screen. Other sites stop, to save battery.</string>
+    <string name="bg_audio_enable">Allow background playback</string>
+    <string name="bg_audio_add">Add a site</string>
+    <string name="bg_audio_empty">No sites yet.\nAdd a site (e.g. youtube.com) to keep its audio playing in the background.</string>
+    <string name="bg_audio_hint">Site (e.g. youtube.com)</string>
+    <string name="bg_audio_notification_title">Playing in background</string>
+    <string name="bg_audio_channel_name">Background playback</string>
 
     <string name="menu_section_places">Places</string>
     <string name="menu_section_page">This page</string>
@@ -132,4 +160,28 @@
     <string name="delete_browsing_data_message">Clears your browsing history and the in-memory cache.</string>
     <string name="page_info_secure">Connection is secure (HTTPS)</string>
     <string name="page_info_insecure">Connection is not secure</string>
+
+    <string name="net_mode_switch">Network</string>
+    <string name="net_mode_title">Network compartment</string>
+    <string name="bootstrap_percent">%1$d%%</string>
+    <string name="net_mode_normal">Normal — direct connection</string>
+    <string name="net_mode_tor">Tor — onion routing</string>
+    <string name="net_mode_i2p">I2P — invisible internet</string>
+    <string name="net_mode_changed">Network mode: %s</string>
+    <string name="settings_section_privacy">Privacy</string>
+    <string name="settings_ad_block">Block ads and trackers</string>
+    <string name="settings_ad_block_summary">Blocks advertising and tracking using EasyList and Brave filter lists, and hides leftover ad slots on the page.</string>
+    <string name="settings_https_only">Always use HTTPS</string>
+    <string name="settings_https_only_summary">Upgrade insecure http:// pages to https:// when possible. Sends Global Privacy Control on every request.</string>
+    <string name="settings_save_history">Save browsing history</string>
+    <string name="settings_save_history_summary">When off, no history of the pages you visit is kept.</string>
+    <string name="settings_clear_on_exit">Clear data when you close the app</string>
+    <string name="settings_clear_on_exit_summary">Wipe history, cookies and cache every time you close the browser.</string>
+    <string name="settings_section_network">Network compartments</string>
+    <string name="compartment_settings_title">%1$s settings</string>
+    <string name="compartment_tor_subtitle">Onion routing — anonymous</string>
+    <string name="compartment_i2p_subtitle">Invisible internet</string>
+    <string name="compartment_normal_subtitle">Direct connection</string>
+    <string name="settings_i2p_keep">Keep I2P running</string>
+    <string name="settings_i2p_keep_summary">Stay connected to the I2P network in the background so tunnels stay ready. Recommended.</string>
 </resources>

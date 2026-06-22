@@ -488,6 +488,16 @@ void ConnectionFromClient::debug_request(u64 page_id, ByteString request, ByteSt
         return;
     }
 
+    if (request == "clear-cookies") {
+        // argument = how many seconds back to clear (0 or empty = everything).
+        auto seconds = argument.to_number<i64>().value_or(0);
+        auto offset = (seconds <= 0)
+            ? AK::Duration::from_seconds(3'153'600'000LL) // ~100 years ≈ all cookies
+            : AK::Duration::from_seconds(seconds);
+        page->page().client().page_did_expire_cookies_with_time_offset(offset);
+        return;
+    }
+
     if (request == "platform") {
         if (argument.is_empty())
             Web::ResourceLoader::the().set_platform(MUST(String::from_utf8(Web::default_platform)));

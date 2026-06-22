@@ -10,6 +10,14 @@
         <item name="colorSurface">@color/ladybird_surface</item>
         <item name="colorSurfaceVariant">@color/ladybird_surface_variant</item>
         <item name="colorOnSurface">@color/ladybird_on_surface</item>
+        <!-- Make every selection/control use our blue accent rather than the
+             device's default (often orange): ripples, text cursor + selection
+             handles, checkboxes, switches. -->
+        <item name="colorAccent">@color/ladybird_accent</item>
+        <item name="colorControlActivated">@color/ladybird_accent</item>
+        <item name="colorControlHighlight">@color/ladybird_accent_container</item>
+        <item name="android:colorControlActivated">@color/ladybird_accent</item>
+        <item name="android:textColorHighlight">@color/ladybird_accent_container</item>
         <item name="android:colorBackground">@color/ladybird_background</item>
         <item name="android:windowBackground">@color/ladybird_background</item>
         <!-- Edge-to-edge like Chromium: content draws under transparent bars. -->

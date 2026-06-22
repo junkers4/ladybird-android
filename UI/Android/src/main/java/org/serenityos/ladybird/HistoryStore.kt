@@ -33,6 +33,11 @@ class HistoryStore(context: Context) {
         save()
     }
 
+    /** Remove entries visited at or after [cutoffMillis] (epoch ms). */
+    fun clearSince(cutoffMillis: Long) {
+        if (entries.removeAll { it.visitedAt >= cutoffMillis }) save()
+    }
+
     fun remove(url: String) {
         if (entries.removeAll { it.url == url }) save()
     }

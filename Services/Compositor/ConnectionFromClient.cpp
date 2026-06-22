@@ -70,6 +70,15 @@ void ConnectionFromClient::create_context(Web::Compositor::CompositorContextId c
     m_compositor_state->create_context(context_id, page_id, *connection);
 }
 
+void ConnectionFromClient::destroy_context(Web::Compositor::CompositorContextId context_id)
+{
+    // Sent by the client when a page is unregistered so the compositor releases
+    // the context instead of leaking it (which previously caused a duplicate
+    // create_context for the same id to abort the process). Tolerant of an
+    // already-gone context to avoid racing the client's bookkeeping.
+    m_compositor_state->destroy_context_if_present(context_id);
+}
+
 void ConnectionFromClient::viewport_size_updated(Web::Compositor::CompositorContextId context_id, Gfx::IntSize viewport_size, Web::Compositor::WindowResizingInProgress window_resize_in_progress)
 {
     m_compositor_state->viewport_size_updated(context_id, viewport_size, window_resize_in_progress);

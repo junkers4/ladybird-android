@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Chrome-style settings: plain rows with title + current-value summary,
-     section headers in accent color, switches inline on the right. -->
+<!-- Vanadium-style settings: a muted section header above a rounded card that
+     groups the section's rows; each row shows its title + current-value
+     summary, switches inline on the right. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -31,90 +32,211 @@
 
             <TextView style="@style/Chromium.SettingsHeader" android:text="@string/settings_section_general" />
 
-            <LinearLayout android:id="@+id/rowSearchEngine" style="@style/Chromium.SettingsRow">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_search_engine" />
-                    <TextView android:id="@+id/searchEngineSummary" style="@style/Chromium.SettingsSummary" />
-                </LinearLayout>
-            </LinearLayout>
+            <LinearLayout style="@style/Chromium.SettingsGroup">
 
-            <LinearLayout android:id="@+id/rowHomePage" style="@style/Chromium.SettingsRow">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_home_page" />
-                    <TextView android:id="@+id/homePageSummary" style="@style/Chromium.SettingsSummary" />
+                <LinearLayout android:id="@+id/rowSearchEngine" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_search_engine" />
+                        <TextView android:id="@+id/searchEngineSummary" style="@style/Chromium.SettingsSummary" />
+                    </LinearLayout>
                 </LinearLayout>
-            </LinearLayout>
 
-            <LinearLayout android:id="@+id/rowColorScheme" style="@style/Chromium.SettingsRow">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_color_scheme" />
-                    <TextView android:id="@+id/colorSchemeSummary" style="@style/Chromium.SettingsSummary" />
+                <LinearLayout android:id="@+id/rowHomePage" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_home_page" />
+                        <TextView android:id="@+id/homePageSummary" style="@style/Chromium.SettingsSummary" />
+                    </LinearLayout>
                 </LinearLayout>
+
+                <LinearLayout android:id="@+id/rowColorScheme" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_color_scheme" />
+                        <TextView android:id="@+id/colorSchemeSummary" style="@style/Chromium.SettingsSummary" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/rowLanguage" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_language" />
+                        <TextView android:id="@+id/languageSummary" style="@style/Chromium.SettingsSummary" />
+                    </LinearLayout>
+                </LinearLayout>
+
             </LinearLayout>
 
             <TextView style="@style/Chromium.SettingsHeader" android:text="@string/settings_section_site" />
 
-            <LinearLayout android:id="@+id/rowJavascript" style="@style/Chromium.SettingsRow">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_javascript" />
-                    <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_javascript_summary" />
+            <LinearLayout style="@style/Chromium.SettingsGroup">
+
+                <LinearLayout android:id="@+id/rowJavascript" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_javascript" />
+                        <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_javascript_summary" />
+                    </LinearLayout>
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/jsSwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp" />
                 </LinearLayout>
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/jsSwitch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp" />
+
+                <LinearLayout android:id="@+id/rowPinch" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_pinch_zoom" />
+                        <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_pinch_zoom_summary" />
+                    </LinearLayout>
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/pinchSwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp" />
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/rowSiteLimits" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="Site time limits" />
+                        <TextView android:id="@+id/siteLimitsSummary" style="@style/Chromium.SettingsSummary" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/rowBackgroundAudio" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/bg_audio_title" />
+                        <TextView android:id="@+id/backgroundAudioSummary" style="@style/Chromium.SettingsSummary" />
+                    </LinearLayout>
+                </LinearLayout>
+
             </LinearLayout>
 
-            <LinearLayout android:id="@+id/rowPinch" style="@style/Chromium.SettingsRow">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_pinch_zoom" />
-                    <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_pinch_zoom_summary" />
+            <TextView style="@style/Chromium.SettingsHeader" android:text="@string/settings_section_privacy" />
+
+            <LinearLayout style="@style/Chromium.SettingsGroup">
+
+                <LinearLayout android:id="@+id/rowAdBlock" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_ad_block" />
+                        <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_ad_block_summary" />
+                    </LinearLayout>
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/adBlockSwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp" />
                 </LinearLayout>
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/pinchSwitch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp" />
+
+                <LinearLayout android:id="@+id/rowHttpsOnly" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_https_only" />
+                        <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_https_only_summary" />
+                    </LinearLayout>
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/httpsOnlySwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp" />
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/rowSaveHistory" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_save_history" />
+                        <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_save_history_summary" />
+                    </LinearLayout>
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/saveHistorySwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp" />
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/rowClearOnExit" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_clear_on_exit" />
+                        <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_clear_on_exit_summary" />
+                    </LinearLayout>
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/clearOnExitSwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <TextView style="@style/Chromium.SettingsHeader" android:text="@string/settings_section_network" />
+
+            <LinearLayout style="@style/Chromium.SettingsGroup">
+
+                <LinearLayout android:id="@+id/rowCompTor" style="@style/Chromium.SettingsRow">
+                    <ImageView android:id="@+id/compTorIcon" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginEnd="14dp" android:padding="8dp" android:contentDescription="@null" />
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="Tor" />
+                        <TextView style="@style/Chromium.SettingsSummary" android:text="@string/compartment_tor_subtitle" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/rowCompI2p" style="@style/Chromium.SettingsRow">
+                    <ImageView android:id="@+id/compI2pIcon" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginEnd="14dp" android:padding="8dp" android:contentDescription="@null" />
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="I2P" />
+                        <TextView style="@style/Chromium.SettingsSummary" android:text="@string/compartment_i2p_subtitle" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/rowCompNormal" style="@style/Chromium.SettingsRow">
+                    <ImageView android:id="@+id/compNormalIcon" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginEnd="14dp" android:padding="8dp" android:contentDescription="@null" />
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="Normal" />
+                        <TextView style="@style/Chromium.SettingsSummary" android:text="@string/compartment_normal_subtitle" />
+                    </LinearLayout>
+                </LinearLayout>
+
             </LinearLayout>
 
             <TextView style="@style/Chromium.SettingsHeader" android:text="@string/settings_section_engine" />
 
-            <LinearLayout android:id="@+id/rowUserAgent" style="@style/Chromium.SettingsRow">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_user_agent" />
-                    <TextView android:id="@+id/userAgentSummary" style="@style/Chromium.SettingsSummary" />
-                </LinearLayout>
-            </LinearLayout>
+            <LinearLayout style="@style/Chromium.SettingsGroup">
 
-            <LinearLayout android:id="@+id/rowNavCompat" style="@style/Chromium.SettingsRow">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_navigator_compat" />
-                    <TextView android:id="@+id/navCompatSummary" style="@style/Chromium.SettingsSummary" />
+                <LinearLayout android:id="@+id/rowUserAgent" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_user_agent" />
+                        <TextView android:id="@+id/userAgentSummary" style="@style/Chromium.SettingsSummary" />
+                    </LinearLayout>
                 </LinearLayout>
+
+                <LinearLayout android:id="@+id/rowNavCompat" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_navigator_compat" />
+                        <TextView android:id="@+id/navCompatSummary" style="@style/Chromium.SettingsSummary" />
+                    </LinearLayout>
+                </LinearLayout>
+
             </LinearLayout>
 
             <TextView style="@style/Chromium.SettingsHeader" android:text="@string/settings_section_about" />
 
-            <LinearLayout android:id="@+id/rowClearData" style="@style/Chromium.SettingsRow">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_clear_data" />
-                    <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_clear_data_summary" />
-                </LinearLayout>
-            </LinearLayout>
+            <LinearLayout style="@style/Chromium.SettingsGroup">
 
-            <LinearLayout android:id="@+id/rowReset" style="@style/Chromium.SettingsRow">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_reset" />
-                    <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_reset_summary" />
+                <LinearLayout android:id="@+id/rowClearData" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_clear_data" />
+                        <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_clear_data_summary" />
+                    </LinearLayout>
                 </LinearLayout>
-            </LinearLayout>
 
-            <LinearLayout android:id="@+id/rowAbout" style="@style/Chromium.SettingsRow">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Chromium.SettingsTitle" android:text="@string/menu_about" />
-                    <TextView android:id="@+id/aboutVersion" style="@style/Chromium.SettingsSummary" />
+                <LinearLayout android:id="@+id/rowReset" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/settings_reset" />
+                        <TextView style="@style/Chromium.SettingsSummary" android:text="@string/settings_reset_summary" />
+                    </LinearLayout>
                 </LinearLayout>
+
+                <LinearLayout android:id="@+id/rowAbout" style="@style/Chromium.SettingsRow">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/menu_about" />
+                        <TextView android:id="@+id/aboutVersion" style="@style/Chromium.SettingsSummary" />
+                    </LinearLayout>
+                </LinearLayout>
+
             </LinearLayout>
         </LinearLayout>
     </ScrollView>

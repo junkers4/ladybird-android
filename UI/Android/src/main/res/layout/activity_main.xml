@@ -135,6 +135,16 @@
                     </FrameLayout>
 
                     <ImageButton
+                        android:id="@+id/networkModeButton"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/net_mode_switch"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_globe"
+                        android:tint="@color/ladybird_on_surface" />
+
+                    <ImageButton
                         android:id="@+id/menuButton"
                         android:layout_width="40dp"
                         android:layout_height="40dp"
@@ -153,6 +163,20 @@
                 android:layout_height="2dp"
                 android:indeterminate="true"
                 android:indeterminateTint="@color/ladybird_progress"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
+            <!-- Determinate Tor/I2P bootstrap bar: fills 0→100% while the daemon
+                 builds its circuit; tinted to the active compartment. -->
+            <ProgressBar
+                android:id="@+id/netBootstrapProgress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:indeterminate="false"
+                android:max="100"
+                android:progress="0"
+                android:progressTint="@color/net_tor"
                 android:visibility="gone"
                 tools:visibility="visible" />
         </com.google.android.material.appbar.AppBarLayout>
@@ -183,77 +207,51 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="64dp"
+                    android:layout_gravity="center"
                     android:gravity="center_horizontal"
                     android:orientation="vertical"
                     android:paddingStart="16dp"
                     android:paddingEnd="16dp">
 
-                    <ImageView
-                        android:id="@+id/ntpLogo"
-                        android:layout_width="88dp"
-                        android:layout_height="88dp"
-                        android:contentDescription="@string/app_name"
-                        android:src="@drawable/ntp_logo_white" />
-
-                    <!-- Big Chromium-NTP search pill -->
-                    <LinearLayout
-                        android:id="@+id/ntpSearchPill"
-                        android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:layout_marginStart="8dp"
-                        android:layout_marginTop="28dp"
-                        android:layout_marginEnd="8dp"
-                        android:background="@drawable/bg_ntp_search_pill"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingStart="18dp"
-                        android:paddingEnd="18dp">
+                    <!-- Clean New Tab page: just our logo, no wordmark and no
+                         centre search pill. Searching is done from the top
+                         omnibox. The logo is tinted to the active compartment
+                         (see applyNetworkTheme) and, while Tor/I2P bootstraps,
+                         the colour "fills up" from the bottom (ntpLogoFill is a
+                         vertical clip driven by bootstrap progress). -->
+                    <FrameLayout
+                        android:layout_width="140dp"
+                        android:layout_height="140dp">
 
                         <ImageView
-                            android:layout_width="22dp"
-                            android:layout_height="22dp"
-                            android:contentDescription="@null"
-                            android:src="@drawable/ic_search"
-                            android:tint="@color/ladybird_on_surface" />
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:paddingStart="14dp"
-                            android:text="@string/ntp_search_hint"
-                            android:textColor="@color/ladybird_on_surface"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <!-- Shortcut tiles card, like Vanadium's most-visited row.
-                         Tiles are added from code (history/bookmarks). -->
-                    <LinearLayout
-                        android:id="@+id/ntpShortcutsCard"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:layout_marginTop="20dp"
-                        android:layout_marginEnd="8dp"
-                        android:background="@drawable/bg_ntp_card"
-                        android:orientation="vertical"
-                        android:paddingTop="18dp"
-                        android:paddingBottom="14dp"
-                        android:visibility="gone"
-                        tools:visibility="visible">
-
-                        <LinearLayout
-                            android:id="@+id/ntpShortcuts"
+                            android:id="@+id/ntpLogo"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="center_horizontal"
-                            android:orientation="horizontal" />
-                    </LinearLayout>
+                            android:layout_height="match_parent"
+                            android:contentDescription="@string/app_name"
+                            android:src="@drawable/ntp_logo_white" />
+
+                        <ImageView
+                            android:id="@+id/ntpLogoFill"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ntp_logo_fill"
+                            android:visibility="gone" />
+                    </FrameLayout>
+
+                    <!-- Bootstrap percentage shown under the logo while a
+                         compartment connects (Tor / I2P). Only the logo + this
+                         number change during loading. -->
+                    <TextView
+                        android:id="@+id/ntpLogoPercent"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:textColor="@color/ladybird_on_surface_muted"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:visibility="gone"
+                        tools:text="42%" />
                 </LinearLayout>
             </FrameLayout>
 

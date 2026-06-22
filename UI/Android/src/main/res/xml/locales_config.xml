@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Languages this app ships UI for; lets Android 13+ offer a per-app language
+     and persist the AppCompat per-app locale across restarts. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="zh" />
+    <locale android:name="ru" />
+    <locale android:name="es" />
+    <locale android:name="sk" />
+    <locale android:name="hi" />
+</locale-config>

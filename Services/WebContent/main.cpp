@@ -5,6 +5,7 @@
  */
 
 #include <AK/LexicalPath.h>
+#include <AK/StringBuilder.h>
 #include <LibCore/ArgsParser.h>
 #include <LibCore/EventLoop.h>
 #include <LibCore/LocalServer.h>
@@ -290,25 +291,35 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
 
 static ErrorOr<void> load_content_blockers(StringView config_path)
 {
-    auto buffer = TRY(ByteBuffer::create_uninitialized(4096));
+    // Feed LibWeb's content blocker the bundled Brave/EasyList filter lists
+    // (unpacked under <resource_root>/res/adblock). This drives both network
+    // blocking (ResourceLoader) and cosmetic ad hiding (StyleScope) — the
+    // renderer-side, upstream-intended path. A user-supplied
+    // BrowserContentBlockers.txt at the config path is appended if present.
+    StringBuilder rules;
 
-    auto file = TRY(Core::File::open(ByteString::formatted("{}/BrowserContentBlockers.txt", config_path), Core::File::OpenMode::Read));
-    auto content_blocker_list = TRY(Core::InputBufferedFile::create(move(file)));
+    auto append_file = [&](ByteString const& path) {
+        auto file = Core::File::open(path, Core::File::OpenMode::Read);
+        if (file.is_error())
+            return;
+        auto contents = file.value()->read_until_eof();
+        if (contents.is_error())
+            return;
+        rules.append(StringView { contents.value().bytes() });
+        rules.append('\n');
+    };
 
-    Vector<String> patterns;
+    auto adblock_dir = ByteString::formatted("{}/res/adblock", WebView::s_ladybird_resource_root);
+    for (auto name : { "easylist.txt"sv, "easyprivacy.txt"sv, "brave-main-list.txt"sv, "brave-unbreak.txt"sv })
+        append_file(ByteString::formatted("{}/{}", adblock_dir, name));
 
-    while (TRY(content_blocker_list->can_read_line())) {
-        auto line = TRY(content_blocker_list->read_line(buffer));
-        if (line.is_empty())
-            continue;
+    append_file(ByteString::formatted("{}/BrowserContentBlockers.txt", config_path));
 
-        auto pattern = TRY(String::from_utf8(line));
-        patterns.append(move(pattern));
-    }
+    if (rules.is_empty())
+        return {};
 
-    auto& content_blocker = Web::ContentBlocker::the();
-    TRY(content_blocker.set_patterns(patterns));
-
+    auto rules_bytes = rules.to_byte_string();
+    TRY(Web::ContentBlocker::the().set_rules_from_bytes(rules_bytes.bytes()));
     return {};
 }
 

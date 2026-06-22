@@ -21,6 +21,9 @@ val packageLadybirdAssets = tasks.register<Zip>("packageLadybirdAssets") {
     from("$sourceDir/Base/res/fonts") { into("res/fonts") }
     from("$sourceDir/Base/res/icons") { into("res/icons") }
     from("$sourceDir/Base/res/themes") { into("res/themes") }
+    // Brave-derived ad-block filter lists + uBO scriptlet resources, unpacked
+    // into <resource_root>/res/adblock and loaded by RequestServer at startup.
+    from("$sourceDir/Base/res/adblock") { into("res/adblock") }
 }
 
 android {
@@ -44,10 +47,15 @@ android {
                     "-DANDROID_STL=c++_shared",
                     "-DLADYBIRD_CACHE_DIR=$cacheDir",
                     "-DVCPKG_ROOT=$sourceDir/Build/vcpkg",
-                    "-DVCPKG_TARGET_ANDROID=ON",
-                    // Use vcpkg's pkgconf so the build doesn't depend on a
-                    // system-wide pkg-config installation.
-                    "-DPKG_CONFIG_EXECUTABLE=$sourceDir/Build/host-tools-build/vcpkg_installed/x64-linux/tools/pkgconf/pkgconf"
+                    "-DVCPKG_TARGET_ANDROID=ON"
+                    // NB: don't override PKG_CONFIG_EXECUTABLE here. Pointing it
+                    // at Build/host-tools-build/.../pkgconf requires a prior host
+                    // tools build that nothing in this project actually performs
+                    // (it only worked locally due to leftover build state), so on
+                    // a clean checkout the Android configure fails finding it.
+                    // Let CMake find the system pkg-config instead (matches
+                    // upstream); for ANDROID it's only needed by find_package and
+                    // the sole pkg_check_modules call is skipped.
                 )
             }
         }
@@ -121,6 +129,16 @@ tasks.matching { it.name.contains("lint", ignoreCase = true) }.configureEach {
     dependsOn(packageLadybirdAssets)
 }
 
+// A transitive dependency drags in a newer kotlin-stdlib than our Kotlin plugin
+// (2.1.x) can read; pin it so the metadata versions stay compatible.
+configurations.all {
+    resolutionStrategy {
+        force("org.jetbrains.kotlin:kotlin-stdlib:2.1.20")
+        force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.20")
+        force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20")
+    }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.6.1")
@@ -128,8 +146,18 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
+    // Tor: Guardian Project's prebuilt tor (ships libtor.so for arm64 + TorService)
+    // plus jtorctl for the control connection it uses internally.
+    implementation("info.guardianproject:tor-android:0.4.8.22")
+    implementation("info.guardianproject:jtorctl:0.4.5.7")
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+    // I2P: embedded PurpleI2P i2pd, bundled as src/main/jniLibs/arm64-v8a/
+    // libi2pd.so and driven through the vendored org.purplei2p.i2pd.I2PD_JNI
+    // class. No external app or Maven dependency — the router runs in-process
+    // and exposes an HTTP proxy on 127.0.0.1:4444 (see I2pLauncher).
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.ext:junit-ktx:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }

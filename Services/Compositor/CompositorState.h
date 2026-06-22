@@ -70,6 +70,7 @@ public:
 
     void create_context(Web::Compositor::CompositorContextId, Optional<u64> page_id, CompositorStateWebContentClient&);
     void destroy_context(Web::Compositor::CompositorContextId);
+    void destroy_context_if_present(Web::Compositor::CompositorContextId);
 
     void set_presentation_mode(Web::Compositor::CompositorContextId, Web::Compositor::PresentationMode);
     void stop_presenting_to_client(Web::Compositor::CompositorContextId);
