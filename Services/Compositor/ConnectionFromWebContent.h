@@ -50,7 +50,11 @@ private:
 
     virtual void dispatch_mouse_event_to_web_content(u64 page_id, Web::MouseEvent const&) override;
     virtual void request_rendering_update() override;
-    void verify_context_is_owned_by_this_connection(Web::Compositor::CompositorContextId);
+    // Returns true if the context exists and is owned by this connection (the
+    // caller should proceed). Returns false for a context that was already
+    // destroyed (a benign navigation/teardown race) or that belongs to another
+    // connection (misbehaving client) — the caller should drop the operation.
+    [[nodiscard]] bool verify_context_is_owned_by_this_connection(Web::Compositor::CompositorContextId);
 
     NonnullRefPtr<CompositorState> m_compositor_state;
     Function<void(ConnectionFromWebContent&)> m_on_death;

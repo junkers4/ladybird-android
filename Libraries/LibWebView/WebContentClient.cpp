@@ -85,9 +85,18 @@ Web::Compositor::CompositorContextId WebContentClient::compositor_context_id_for
 {
     auto context_id = Web::Compositor::compositor_context_id_for_page(page_id);
     if (auto registered_page_id = m_compositor_contexts.get(context_id); registered_page_id.has_value()) {
-        VERIFY(registered_page_id->has_value());
-        VERIFY(**registered_page_id == page_id);
-        return context_id;
+        // Already bound to this page: reuse the existing context.
+        if (registered_page_id->has_value() && **registered_page_id == page_id)
+            return context_id;
+
+        // Otherwise the deterministic per-page id (== page_id) collided with a
+        // context that was previously allocated independently: either a
+        // no-presentation context (stored with an empty page id) or one bound to
+        // a different page. The standalone allocator (allocate_compositor_context_id)
+        // draws from a separate id counter, so these ranges can overlap. Release
+        // the stale context — forget_compositor_context also destroys it on the
+        // compositor side — and re-register it for this page instead of crashing.
+        forget_compositor_context(context_id);
     }
 
     remember_compositor_context(context_id, page_id);

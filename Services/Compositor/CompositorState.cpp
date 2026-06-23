@@ -93,7 +93,10 @@ void CompositorState::destroy_context(Web::Compositor::CompositorContextId conte
     detach_from_parent_surface(context_id, *context);
     for (auto& child_context_entry : context->child_contexts()) {
         auto* child_context = context_if_present(child_context_entry.child_context_id);
-        VERIFY(child_context);
+        // The child may have already been destroyed during a rapid navigation
+        // teardown; its detach bookkeeping is then gone too, so skip it.
+        if (!child_context)
+            continue;
         child_context->did_detach_from_parent_surface(context_id, child_context_entry.surface_id);
     }
     m_contexts.remove(context_id);
@@ -120,7 +123,10 @@ void CompositorState::set_presentation_mode(Web::Compositor::CompositorContextId
         [](Web::Compositor::PresentToClient const&) {},
         [&](Web::Compositor::PublishToCompositorSurface const& mode) {
             auto* parent_context = context_if_present(mode.target_context_id);
-            VERIFY(parent_context);
+            // Target/parent context was destroyed (navigation race): there is
+            // nothing to publish into, so skip attaching/recording the surface.
+            if (!parent_context)
+                return;
             parent_context->attach_child_surface(mode.surface_id, context_id);
             context_state.set_published_surface({
                 .parent_context_id = mode.target_context_id,
@@ -514,7 +520,10 @@ void CompositorState::detach_from_parent_surface(Web::Compositor::CompositorCont
         return;
 
     auto* parent_context = context_if_present(published_surface->parent_context_id);
-    VERIFY(parent_context);
+    // Parent context already destroyed (navigation race). We've already taken
+    // our own published-surface state above, so just stop here.
+    if (!parent_context)
+        return;
     auto removed_child_context_id = parent_context->take_child_context_for_surface(published_surface->surface_id);
     VERIFY(removed_child_context_id.has_value());
     VERIFY(*removed_child_context_id == context_id);
@@ -529,7 +538,9 @@ void CompositorState::remove_child_surface(ContextState& context, Web::Composito
         return;
 
     auto* child_context = context_if_present(*child_context_id);
-    VERIFY(child_context);
+    // Child context already destroyed (navigation race); nothing to detach.
+    if (!child_context)
+        return;
     child_context->did_detach_from_parent_surface(parent_context_id, surface_id);
 }
 
@@ -570,7 +581,9 @@ void CompositorState::present_current_frame(Web::Compositor::CompositorContextId
 void CompositorState::publish_to_parent_surface(ContextState& context, Web::Compositor::PublishToCompositorSurface const& mode)
 {
     auto* parent_context = context_if_present(mode.target_context_id);
-    VERIFY(parent_context);
+    // Parent/target context destroyed (navigation race); nothing to publish to.
+    if (!parent_context)
+        return;
 
     parent_context->update_compositor_surface(mode.surface_id, context.snapshot_front_store());
     present_current_frame(mode.target_context_id, *parent_context);
