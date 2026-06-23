@@ -852,6 +852,7 @@ public:
 
     bool ready_to_run_scripts() const { return m_ready_to_run_scripts; }
     void set_ready_to_run_scripts();
+    void inject_content_blocker_scriptlets();
     void set_deferred_parser_start(GC::Ref<GC::Function<void()>>);
     bool has_deferred_parser_start() const { return m_deferred_parser_start; }
 

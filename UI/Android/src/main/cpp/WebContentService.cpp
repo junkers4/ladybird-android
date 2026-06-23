@@ -125,6 +125,13 @@ static ErrorOr<void> load_content_blockers()
     auto& content_blocker = Web::ContentBlocker::the();
     TRY(content_blocker.set_patterns(patterns));
 
+    // Document-start scriptlets (e.g. YouTube player-ad pruning), injected as
+    // JavaScript rather than filter-list rules. Optional; skipped if absent.
+    if (auto scriptlets_file = Core::File::open(ByteString::formatted("{}/res/adblock/scriptlets.json", WebView::s_ladybird_resource_root), Core::File::OpenMode::Read); !scriptlets_file.is_error()) {
+        if (auto contents = scriptlets_file.value()->read_until_eof(); !contents.is_error())
+            content_blocker.set_scriptlets_from_bytes(contents.value().bytes());
+    }
+
     return {};
 }
 

@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/AnyOf.h>
+#include <AK/JsonArray.h>
+#include <AK/JsonObject.h>
+#include <AK/JsonValue.h>
 #include <AK/ScopeGuard.h>
 #include <AK/StringBuilder.h>
 #include <AK/Vector.h>
@@ -255,6 +259,70 @@ bool ContentBlocker::has_generic_cosmetic_selectors_for_url(URL::URL const& url,
         classes_bytes.length(),
         reinterpret_cast<u8 const*>(ids_bytes.characters_without_null_termination()),
         ids_bytes.length());
+}
+
+void ContentBlocker::set_scriptlets_from_bytes(ReadonlyBytes json_bytes)
+{
+    m_scriptlets.clear();
+
+    auto json_or_error = JsonValue::from_string(StringView { json_bytes });
+    if (json_or_error.is_error() || !json_or_error.value().is_array())
+        return;
+
+    json_or_error.value().as_array().for_each([&](JsonValue const& entry) {
+        if (!entry.is_object())
+            return;
+        auto const& object = entry.as_object();
+
+        auto script = object.get_string("script"sv);
+        if (!script.has_value() || script->is_empty())
+            return;
+
+        ScriptletRule rule;
+        rule.script = *script;
+        if (auto hosts = object.get("hosts"sv); hosts.has_value() && hosts->is_array()) {
+            hosts->as_array().for_each([&](JsonValue const& host) {
+                if (host.is_string())
+                    rule.hosts.append(host.as_string());
+            });
+        }
+        if (!rule.hosts.is_empty())
+            m_scriptlets.append(move(rule));
+    });
+}
+
+String ContentBlocker::scriptlets_for_url(URL::URL const& url) const
+{
+    if (!filtering_enabled() || m_scriptlets.is_empty())
+        return {};
+
+    auto host = url.serialized_host();
+    if (host.is_empty())
+        return {};
+    auto host_view = host.bytes_as_string_view();
+
+    auto host_matches = [&](String const& rule_host) {
+        auto rule_view = rule_host.bytes_as_string_view();
+        if (host_view == rule_view)
+            return true;
+        // Subdomain match: host ends with ".rule_host".
+        return host_view.length() > rule_view.length() + 1
+            && host_view.ends_with(rule_view)
+            && host_view[host_view.length() - rule_view.length() - 1] == '.';
+    };
+
+    StringBuilder builder;
+    for (auto const& rule : m_scriptlets) {
+        if (any_of(rule.hosts, host_matches)) {
+            builder.append(rule.script);
+            builder.append('\n');
+        }
+    }
+
+    auto result = builder.to_string();
+    if (result.is_error())
+        return {};
+    return result.release_value();
 }
 
 ContentBlocker::ResourceType ContentBlocker::resource_type_from_fetch_metadata(Optional<Fetch::Infrastructure::Request::Destination> const& destination, Optional<Fetch::Infrastructure::Request::InitiatorType> const& initiator_type, Fetch::Infrastructure::Request::Mode mode)

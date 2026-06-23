@@ -10,6 +10,7 @@
 #include <AK/Error.h>
 #include <AK/Noncopyable.h>
 #include <AK/String.h>
+#include <AK/Vector.h>
 #include <LibURL/URL.h>
 #include <LibWeb/Export.h>
 #include <LibWeb/Fetch/Infrastructure/HTTP/Requests.h>
@@ -53,6 +54,14 @@ public:
     String cosmetic_style_sheet_for_url(URL::URL const&, ReadonlySpan<String> classes, ReadonlySpan<String> ids) const;
     bool has_generic_cosmetic_selectors_for_url(URL::URL const&, ReadonlySpan<String> classes, ReadonlySpan<String> ids) const;
 
+    // Self-contained, document-start scriptlets keyed by host. Loaded from a
+    // bundled JSON manifest (res/adblock/scriptlets.json). Unlike cosmetic CSS,
+    // these are plain JavaScript injected before page scripts run (e.g. to strip
+    // YouTube's player-response ad fields). Returns the concatenated scripts that
+    // apply to the given URL's host, or an empty string.
+    void set_scriptlets_from_bytes(ReadonlyBytes);
+    String scriptlets_for_url(URL::URL const&) const;
+
     static ResourceType resource_type_from_fetch_metadata(Optional<Fetch::Infrastructure::Request::Destination> const&, Optional<Fetch::Infrastructure::Request::InitiatorType> const&, Fetch::Infrastructure::Request::Mode);
     static URL::URL source_url_for_matching(URL::URL const&);
 
@@ -60,9 +69,15 @@ private:
     ContentBlocker();
     ~ContentBlocker();
 
+    struct ScriptletRule {
+        Vector<String> hosts;
+        String script;
+    };
+
     bool m_filtering_enabled { true };
     bool m_has_cosmetic_rules { false };
     void* m_engine { nullptr };
+    Vector<ScriptletRule> m_scriptlets;
 };
 
 }

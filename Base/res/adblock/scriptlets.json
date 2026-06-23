@@ -1,0 +1,7 @@
+[
+  {
+    "name": "youtube-player-ads",
+    "hosts": ["youtube.com", "youtube-nocookie.com"],
+    "script": "(function(){'use strict';var prune=function(o){if(!o||typeof o!=='object')return o;try{delete o.adPlacements;delete o.adSlots;delete o.playerAds;var pr=o.playerResponse;if(pr&&typeof pr==='object'){delete pr.adPlacements;delete pr.adSlots;delete pr.playerAds;}}catch(e){}return o;};try{var op=JSON.parse;JSON.parse=function(){return prune(op.apply(this,arguments));};}catch(e){}try{var rj=Response.prototype.json;Response.prototype.json=function(){return rj.apply(this,arguments).then(prune);};}catch(e){}try{var _v;Object.defineProperty(window,'ytInitialPlayerResponse',{configurable:true,get:function(){return _v;},set:function(v){_v=prune(v);}});}catch(e){}console.log('[adblock] youtube player-ads scriptlet active');})();"
+  }
+]

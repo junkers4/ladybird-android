@@ -320,6 +320,14 @@ static ErrorOr<void> load_content_blockers(StringView config_path)
 
     auto rules_bytes = rules.to_byte_string();
     TRY(Web::ContentBlocker::the().set_rules_from_bytes(rules_bytes.bytes()));
+
+    // Document-start scriptlets (e.g. YouTube player-ad pruning) live in a
+    // separate JSON manifest, since they are injected JavaScript rather than
+    // filter-list rules. Optional: skipped silently if absent.
+    if (auto scriptlets_file = Core::File::open(ByteString::formatted("{}/scriptlets.json", adblock_dir), Core::File::OpenMode::Read); !scriptlets_file.is_error()) {
+        if (auto contents = scriptlets_file.value()->read_until_eof(); !contents.is_error())
+            Web::ContentBlocker::the().set_scriptlets_from_bytes(contents.value().bytes());
+    }
     return {};
 }
 

@@ -6691,10 +6691,32 @@ void Document::update_for_history_step_application(NonnullRefPtr<HTML::SessionHi
 void Document::set_ready_to_run_scripts()
 {
     m_ready_to_run_scripts = true;
+    // Run content-blocker scriptlets now, before the parser starts executing the
+    // page's own scripts, so document-start hooks (e.g. YouTube player-ad
+    // pruning) are installed first.
+    inject_content_blocker_scriptlets();
     if (auto callback = m_deferred_parser_start) {
         m_deferred_parser_start = nullptr;
         callback->function()();
     }
+}
+
+void Document::inject_content_blocker_scriptlets()
+{
+    // Only meaningful for real http(s) pages with a script-running window.
+    if (!m_window)
+        return;
+    if (!url().scheme().is_one_of("http"sv, "https"sv))
+        return;
+
+    auto script_source = ContentBlocker::the().scriptlets_for_url(url());
+    if (script_source.is_empty())
+        return;
+
+    auto& settings = relevant_settings_object();
+    auto base_url = settings.api_base_url();
+    auto script = HTML::ClassicScript::create("(content blocker scriptlet)", script_source.bytes_as_string_view(), settings, move(base_url));
+    (void)script->run();
 }
 
 void Document::set_deferred_parser_start(GC::Ref<GC::Function<void()>> callback)
