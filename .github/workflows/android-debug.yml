@@ -57,6 +57,32 @@ jobs:
 
       # === PREPARE FOR BUILDING ===
 
+      # The shared ./.github/actions/setup only installs the native host
+      # toolchain for macOS/Android (via brew); upstream's Linux jobs run in a
+      # prebuilt container that already has it. This job runs on a bare
+      # ubuntu-24.04 runner, so install the host build prerequisites here.
+      # Without ccache the cache-restore step fails with exit 127
+      # ("ccache: command not found") before the build ever starts.
+      - name: Install Linux host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            autoconf \
+            autoconf-archive \
+            automake \
+            build-essential \
+            ccache \
+            clang-18 \
+            cmake \
+            curl \
+            libtool \
+            nasm \
+            ninja-build \
+            pkg-config \
+            tar \
+            unzip \
+            zip
+
       - name: Free Disk Space
         run: |
           df -h "${GITHUB_WORKSPACE}" /
