@@ -232,4 +232,7 @@
     <string name="compartment_about_i2p">О сети I2P</string>
     <string name="compartment_i2p_desc">I2P — это одноранговая анонимная сеть. Сайты .i2p (eepsites) загружаются прямо внутри I2P; обычные сайты направляются через публичный outproxy I2P. Построение туннелей при первом использовании может занять минуту.</string>
     <string name="compartment_normal_desc">Прямое подключение без слоя анонимности — самый быстрый вариант, но сайты видят ваш настоящий IP-адрес. Когда хотите просматривать приватно, переключитесь на Tor или I2P кнопкой сети.</string>
+    <string name="context_download">Скачать</string>
+    <string name="download_started">Скачивается %1$s</string>
+    <string name="download_failed">Не удалось скачать</string>
 </resources>

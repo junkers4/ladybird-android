@@ -232,4 +232,7 @@
     <string name="compartment_about_i2p">O sieti I2P</string>
     <string name="compartment_i2p_desc">I2P je peer-to-peer anonymná sieť. .i2p eepsite sa načítavajú priamo v I2P; bežné stránky sú smerované cez verejný I2P outproxy. Budovanie tunelov môže pri prvom použití chvíľu trvať.</string>
     <string name="compartment_normal_desc">Priame pripojenie bez vrstvy anonymity — najrýchlejšia možnosť, ale stránky vidia vašu skutočnú IP adresu. Keď chcete prehliadať súkromne, prepnite na Tor alebo I2P cez sieťové tlačidlo.</string>
+    <string name="context_download">Stiahnuť</string>
+    <string name="download_started">Sťahuje sa %1$s</string>
+    <string name="download_failed">Sťahovanie zlyhalo</string>
 </resources>

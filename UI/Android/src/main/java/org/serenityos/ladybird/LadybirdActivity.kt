@@ -1542,6 +1542,13 @@ class LadybirdActivity : AppCompatActivity() {
     private fun showPageContextMenu() {
         val items = mutableListOf<Pair<Int, () -> Unit>>()
         if (currentUrl.isNotBlank()) {
+            // Save the current resource. Only in the Normal compartment —
+            // DownloadManager fetches directly and would bypass the Tor/I2P
+            // proxy, so we never leak a download outside the tunnel.
+            if (settings.networkMode == NetworkMode.Normal &&
+                (currentUrl.startsWith("http://") || currentUrl.startsWith("https://"))) {
+                items += R.string.context_download to { downloadUrl(currentUrl) }
+            }
             items += R.string.context_copy_url to { copyCurrentUrl() }
             items += R.string.menu_share to { shareCurrent() }
             items += R.string.menu_reload to { view.reload() }
@@ -1558,6 +1565,36 @@ class LadybirdActivity : AppCompatActivity() {
             .setItems(labels) { _, idx -> items[idx].second() }
             .setNegativeButton(R.string.dialog_cancel, null)
             .show()
+    }
+
+    /**
+     * Download a URL via Android's system DownloadManager: it saves into the
+     * public Downloads folder, shows a progress/complete notification, and
+     * survives the app being backgrounded. Only http(s) links are accepted.
+     */
+    private fun downloadUrl(url: String) {
+        try {
+            val uri = android.net.Uri.parse(url)
+            if (uri.scheme?.lowercase() !in listOf("http", "https")) {
+                Toast.makeText(this, R.string.download_failed, Toast.LENGTH_SHORT).show()
+                return
+            }
+            val name = uri.lastPathSegment?.substringAfterLast('/')
+                ?.takeIf { it.isNotBlank() } ?: "download"
+            val request = android.app.DownloadManager.Request(uri)
+                .setNotificationVisibility(
+                    android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, name)
+                .setTitle(name)
+                .setDescription(uri.host ?: getString(R.string.app_name))
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(true)
+            (getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager).enqueue(request)
+            Toast.makeText(this, getString(R.string.download_started, name), Toast.LENGTH_SHORT).show()
+        } catch (t: Throwable) {
+            Log.e("Ladybird", "download failed for $url", t)
+            Toast.makeText(this, R.string.download_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showAboutDialog() {

@@ -232,4 +232,7 @@
     <string name="compartment_about_i2p">关于 I2P</string>
     <string name="compartment_i2p_desc">I2P 是一个点对点匿名网络。.i2p eepsite 直接在 I2P 内部加载；普通网站则通过公共 I2P 出口代理路由。首次使用时建立隧道可能需要一分钟。</string>
     <string name="compartment_normal_desc">没有匿名层的直接连接——最快的选项，但网站会看到你的真实 IP 地址。想要私密浏览时，请通过网络按钮切换到 Tor 或 I2P。</string>
+    <string name="context_download">下载</string>
+    <string name="download_started">正在下载 %1$s</string>
+    <string name="download_failed">下载失败</string>
 </resources>

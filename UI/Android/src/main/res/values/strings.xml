@@ -230,4 +230,8 @@
     <string name="compartment_about_i2p">About I2P</string>
     <string name="compartment_i2p_desc">I2P is a peer-to-peer anonymous network. .i2p eepsites load directly inside I2P; ordinary websites are routed through a public I2P outproxy. Building tunnels can take a minute on first use.</string>
     <string name="compartment_normal_desc">A direct connection with no anonymity layer — the fastest option, but websites see your real IP address. Switch to Tor or I2P from the network button when you want to browse privately.</string>
+
+    <string name="context_download">Download</string>
+    <string name="download_started">Downloading %1$s</string>
+    <string name="download_failed">Download failed</string>
 </resources>
