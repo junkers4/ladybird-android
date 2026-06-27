@@ -162,4 +162,74 @@
     <string name="compartment_normal_subtitle">Priame pripojenie</string>
     <string name="settings_i2p_keep">Ponechať I2P spustené</string>
     <string name="settings_i2p_keep_summary">Zostať pripojený k sieti I2P na pozadí, aby boli tunely pripravené. Odporúčané.</string>
+
+    <string name="app_name">Ladybird</string>
+    <string name="bootstrap_percent">%1$d%%</string>
+    <string name="find_in_page_counter">%1$d / %2$d</string>
+    <string name="search_engine_google">Google</string>
+    <string name="search_engine_duckduckgo">DuckDuckGo</string>
+    <string name="search_engine_bing">Bing</string>
+    <string name="search_engine_kagi">Kagi</string>
+    <string name="search_engine_brave">Brave</string>
+    <string name="search_engine_ecosia">Ecosia</string>
+
+    <string name="settings_ad_block">Blokovať reklamy a sledovače</string>
+    <string name="settings_ad_block_summary">Blokuje reklamy a sledovanie pomocou zoznamov EasyList a Brave a skrýva zvyšné reklamné miesta na stránke.</string>
+    <string name="settings_https_only">Vždy používať HTTPS</string>
+    <string name="settings_https_only_summary">Keď je to možné, inovuje nezabezpečené stránky http:// na https://. Pri každej požiadavke odosiela Global Privacy Control.</string>
+
+    <string name="bg_audio_title">Prehrávanie na pozadí</string>
+    <string name="bg_audio_summary">Nechajte tieto stránky prehrávať zvuk, aj keď opustíte aplikáciu alebo uzamknete obrazovku. Ostatné stránky sa zastavia, aby sa šetrila batéria.</string>
+    <string name="bg_audio_enable">Povoliť prehrávanie na pozadí</string>
+    <string name="bg_audio_add">Pridať stránku</string>
+    <string name="bg_audio_empty">Zatiaľ žiadne stránky.\nPridajte stránku (napr. youtube.com), aby jej zvuk hral na pozadí.</string>
+    <string name="bg_audio_hint">Stránka (napr. youtube.com)</string>
+    <string name="bg_audio_notification_title">Prehráva sa na pozadí</string>
+    <string name="bg_audio_channel_name">Prehrávanie na pozadí</string>
+
+    <string name="delete_range_title">Časový rozsah</string>
+    <string name="delete_range_last_hour">Poslednú hodinu</string>
+    <string name="delete_range_24h">Posledných 24 hodín</string>
+    <string name="delete_range_7d">Posledných 7 dní</string>
+    <string name="delete_range_4w">Posledné 4 týždne</string>
+    <string name="delete_range_all">Celý čas</string>
+    <string name="delete_range_custom">Vlastné…</string>
+    <string name="delete_range_since">Od %1$s</string>
+    <string name="delete_item_history">História prehliadania</string>
+    <string name="delete_item_history_sub">Stránky, ktoré ste navštívili</string>
+    <string name="delete_item_cookies">Súbory cookie a údaje stránok</string>
+    <string name="delete_item_cookies_sub">Odhlási vás z väčšiny stránok</string>
+    <string name="delete_item_cache">Súbory vo vyrovnávacej pamäti</string>
+    <string name="delete_item_cache_sub">Uvoľní úložisko</string>
+
+    <string name="usage_today">Dnes</string>
+    <string name="usage_none">Zatiaľ nezaznamenaný žiadny čas</string>
+    <string name="usage_summary_one">%1$s na 1 stránke</string>
+    <string name="usage_summary_many">%1$s na %2$d stránkach</string>
+    <string name="usage_empty">Trochu si prehliadajte so zapnutými časovými limitmi stránok a vaše využitie sa zobrazí tu.</string>
+    <string name="usage_site_limit">%1$s / %2$dm</string>
+
+    <string name="limit_reached_title">Denný limit dosiahnutý</string>
+    <string name="limit_reached_message">Využili ste svojich %1$d min denne na %2$s. Vráťte sa zajtra.</string>
+    <string name="tab_label_new">Nová karta</string>
+    <string name="tabs_search_hint">Hľadať v kartách</string>
+
+    <string name="settings_summary_off">Vypnuté</string>
+    <string name="bg_sites_none">Žiadne pridané stránky</string>
+    <string name="bg_sites_one">1 stránka</string>
+    <string name="bg_sites_many">%1$d stránok</string>
+
+    <string name="language_system_default">Predvolené systémom</string>
+    <string name="compartment_about_tor">O sieti Tor</string>
+    <string name="compartment_tor_desc">Tor posiela vašu prevádzku cez tri dobrovoľnícke uzly, takže stránky vidia výstupný uzol Tor namiesto vašej skutočnej adresy. Je pomalší ako priame pripojenie a niektoré stránky výstupné uzly Tor blokujú.</string>
+    <string name="compartment_verification">Overenie</string>
+    <string name="compartment_tor_check">Skontrolovať, že prehliadač používa Tor</string>
+    <string name="compartment_tor_check_sub">Otvorí check.torproject.org</string>
+    <string name="compartment_i2p_keep_title">Ponechať I2P spustené na pozadí</string>
+    <string name="compartment_i2p_keep_sub">Zostať pripojený k sieti I2P aj po opustení kompartmentu I2P, aby sa okamžite znova pripojil.</string>
+    <string name="compartment_i2p_addressbook">Odbery adresára</string>
+    <string name="compartment_i2p_addressbook_sub">Načítava zoznamy hosts.txt zvnútra I2P, aby sa .i2p stránky (reg.i2p, stats.i2p…) rozlišovali automaticky bez potreby jump služby. Použije sa pri ďalšom spustení I2P.</string>
+    <string name="compartment_about_i2p">O sieti I2P</string>
+    <string name="compartment_i2p_desc">I2P je peer-to-peer anonymná sieť. .i2p eepsite sa načítavajú priamo v I2P; bežné stránky sú smerované cez verejný I2P outproxy. Budovanie tunelov môže pri prvom použití chvíľu trvať.</string>
+    <string name="compartment_normal_desc">Priame pripojenie bez vrstvy anonymity — najrýchlejšia možnosť, ale stránky vidia vašu skutočnú IP adresu. Keď chcete prehliadať súkromne, prepnite na Tor alebo I2P cez sieťové tlačidlo.</string>
 </resources>

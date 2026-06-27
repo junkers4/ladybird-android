@@ -28,11 +28,11 @@ class DeleteBrowsingDataActivity : AppCompatActivity() {
     private lateinit var binding: ActivityDeleteDataBinding
 
     private val ranges = listOf(
-        "Last hour" to 3_600L,
-        "Last 24 hours" to 86_400L,
-        "Last 7 days" to 604_800L,
-        "Last 4 weeks" to 2_419_200L,
-        "All time" to 0L,
+        R.string.delete_range_last_hour to 3_600L,
+        R.string.delete_range_24h to 86_400L,
+        R.string.delete_range_7d to 604_800L,
+        R.string.delete_range_4w to 2_419_200L,
+        R.string.delete_range_all to 0L,
     )
     private val customIndex = ranges.size
     private var rangeIndex = ranges.lastIndex
@@ -62,9 +62,9 @@ class DeleteBrowsingDataActivity : AppCompatActivity() {
         }
         binding.deleteContent.addView(timeRangeRow())
 
-        cbHistory = checkRow("Browsing history", "Pages you've visited")
-        cbCookies = checkRow("Cookies and site data", "Signs you out of most sites")
-        cbCache = checkRow("Cached files", "Frees up storage")
+        cbHistory = checkRow(getString(R.string.delete_item_history), getString(R.string.delete_item_history_sub))
+        cbCookies = checkRow(getString(R.string.delete_item_cookies), getString(R.string.delete_item_cookies_sub))
+        cbCache = checkRow(getString(R.string.delete_item_cache), getString(R.string.delete_item_cache_sub))
 
         updateRangeLabel()
         binding.deleteButton.setOnClickListener { doDelete() }
@@ -80,13 +80,13 @@ class DeleteBrowsingDataActivity : AppCompatActivity() {
 
     private fun updateRangeLabel() {
         // Custom keeps the "Since <date>" label set in pickCustom().
-        if (rangeIndex != customIndex) rangeValue.text = ranges[rangeIndex].first
+        if (rangeIndex != customIndex) rangeValue.text = getString(ranges[rangeIndex].first)
     }
 
     private fun showRangeChooser() {
-        val labels = (ranges.map { it.first } + "Custom…").toTypedArray()
+        val labels = (ranges.map { getString(it.first) } + getString(R.string.delete_range_custom)).toTypedArray()
         MaterialAlertDialogBuilder(this)
-            .setTitle("Time range")
+            .setTitle(R.string.delete_range_title)
             .setSingleChoiceItems(labels, rangeIndex) { d, which ->
                 d.dismiss()
                 if (which == customIndex) {
@@ -108,7 +108,7 @@ class DeleteBrowsingDataActivity : AppCompatActivity() {
             }
             customSeconds = ((System.currentTimeMillis() - picked.timeInMillis) / 1000).coerceAtLeast(0)
             rangeIndex = customIndex
-            rangeValue.text = "Since " + android.text.format.DateFormat.getDateFormat(this).format(picked.time)
+            rangeValue.text = getString(R.string.delete_range_since, android.text.format.DateFormat.getDateFormat(this).format(picked.time))
         }, now.get(java.util.Calendar.YEAR), now.get(java.util.Calendar.MONTH), now.get(java.util.Calendar.DAY_OF_MONTH))
             .apply { datePicker.maxDate = System.currentTimeMillis() }
             .show()
@@ -141,7 +141,7 @@ class DeleteBrowsingDataActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
             addView(TextView(this@DeleteBrowsingDataActivity).apply {
-                text = "Time range"; setTextColor(color(R.color.ladybird_on_surface)); textSize = 16f
+                text = getString(R.string.delete_range_title); setTextColor(color(R.color.ladybird_on_surface)); textSize = 16f
             })
             addView(rangeValue)
         })

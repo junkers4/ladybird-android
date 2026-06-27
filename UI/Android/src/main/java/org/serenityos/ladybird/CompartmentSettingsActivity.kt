@@ -63,17 +63,13 @@ class CompartmentSettingsActivity : AppCompatActivity() {
     }
 
     private fun buildTor(accent: Int, on: Int) {
-        header("About Tor", accent)
+        header(getString(R.string.compartment_about_tor), accent)
         card {
-            addView(description(
-                "Tor sends your traffic through three volunteer relays, so sites " +
-                "see a Tor exit node instead of your real address. It is slower " +
-                "than a direct connection, and some sites block Tor exit nodes."
-            ))
+            addView(description(getString(R.string.compartment_tor_desc)))
         }
-        header("Verification", accent)
+        header(getString(R.string.compartment_verification), accent)
         card {
-            addView(actionRow("Check this browser uses Tor", "Opens check.torproject.org") {
+            addView(actionRow(getString(R.string.compartment_tor_check), getString(R.string.compartment_tor_check_sub)) {
                 openInBrowser("https://check.torproject.org/")
             })
         }
@@ -83,34 +79,26 @@ class CompartmentSettingsActivity : AppCompatActivity() {
         header("I2P", accent)
         card {
             addView(switchRow(
-                "Keep I2P running in the background",
-                "Stay connected to the I2P network even after leaving the I2P compartment, so it reconnects instantly.",
+                getString(R.string.compartment_i2p_keep_title),
+                getString(R.string.compartment_i2p_keep_sub),
                 settings.i2pKeepRunning
             ) { checked -> settings.i2pKeepRunning = checked })
             addView(switchRow(
-                "Addressbook subscriptions",
-                "Fetch hosts.txt lists from inside I2P so .i2p sites (reg.i2p, stats.i2p…) resolve automatically instead of needing a jump service. Applies next time I2P starts.",
+                getString(R.string.compartment_i2p_addressbook),
+                getString(R.string.compartment_i2p_addressbook_sub),
                 settings.i2pAddressbookSubscriptions
             ) { checked -> settings.i2pAddressbookSubscriptions = checked })
         }
-        header("About I2P", accent)
+        header(getString(R.string.compartment_about_i2p), accent)
         card {
-            addView(description(
-                "I2P is a peer-to-peer anonymous network. .i2p eepsites load " +
-                "directly inside I2P; ordinary websites are routed through a " +
-                "public I2P outproxy. Building tunnels can take a minute on first use."
-            ))
+            addView(description(getString(R.string.compartment_i2p_desc)))
         }
     }
 
     private fun buildNormal(accent: Int, on: Int) {
         header("Normal", accent)
         card {
-            addView(description(
-                "A direct connection with no anonymity layer — the fastest option, " +
-                "but websites see your real IP address. Switch to Tor or I2P from " +
-                "the network button when you want to browse privately."
-            ))
+            addView(description(getString(R.string.compartment_normal_desc)))
         }
     }
 

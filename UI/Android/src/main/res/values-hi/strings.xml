@@ -162,4 +162,74 @@
     <string name="compartment_normal_subtitle">सीधा कनेक्शन</string>
     <string name="settings_i2p_keep">I2P चालू रखें</string>
     <string name="settings_i2p_keep_summary">टनल तैयार रहें इसके लिए पृष्ठभूमि में I2P नेटवर्क से जुड़े रहें। अनुशंसित।</string>
+
+    <string name="app_name">Ladybird</string>
+    <string name="bootstrap_percent">%1$d%%</string>
+    <string name="find_in_page_counter">%1$d / %2$d</string>
+    <string name="search_engine_google">Google</string>
+    <string name="search_engine_duckduckgo">DuckDuckGo</string>
+    <string name="search_engine_bing">Bing</string>
+    <string name="search_engine_kagi">Kagi</string>
+    <string name="search_engine_brave">Brave</string>
+    <string name="search_engine_ecosia">Ecosia</string>
+
+    <string name="settings_ad_block">विज्ञापन और ट्रैकर ब्लॉक करें</string>
+    <string name="settings_ad_block_summary">EasyList और Brave फ़िल्टर सूचियों का उपयोग करके विज्ञापन और ट्रैकिंग ब्लॉक करता है, और पेज पर बचे हुए विज्ञापन स्थानों को छुपाता है।</string>
+    <string name="settings_https_only">हमेशा HTTPS का उपयोग करें</string>
+    <string name="settings_https_only_summary">जब संभव हो, असुरक्षित http:// पेजों को https:// में अपग्रेड करता है। हर अनुरोध के साथ Global Privacy Control भेजता है।</string>
+
+    <string name="bg_audio_title">पृष्ठभूमि में चलाना</string>
+    <string name="bg_audio_summary">इन साइटों को ऐप छोड़ने या स्क्रीन लॉक करने पर भी ऑडियो चलाते रहने दें। बैटरी बचाने के लिए अन्य साइटें रुक जाती हैं।</string>
+    <string name="bg_audio_enable">पृष्ठभूमि में चलाने की अनुमति दें</string>
+    <string name="bg_audio_add">साइट जोड़ें</string>
+    <string name="bg_audio_empty">अभी तक कोई साइट नहीं।\nकिसी साइट (जैसे youtube.com) को जोड़ें ताकि उसका ऑडियो पृष्ठभूमि में चलता रहे।</string>
+    <string name="bg_audio_hint">साइट (जैसे youtube.com)</string>
+    <string name="bg_audio_notification_title">पृष्ठभूमि में चल रहा है</string>
+    <string name="bg_audio_channel_name">पृष्ठभूमि में चलाना</string>
+
+    <string name="delete_range_title">समय सीमा</string>
+    <string name="delete_range_last_hour">पिछला एक घंटा</string>
+    <string name="delete_range_24h">पिछले 24 घंटे</string>
+    <string name="delete_range_7d">पिछले 7 दिन</string>
+    <string name="delete_range_4w">पिछले 4 सप्ताह</string>
+    <string name="delete_range_all">पूरा समय</string>
+    <string name="delete_range_custom">कस्टम…</string>
+    <string name="delete_range_since">%1$s से</string>
+    <string name="delete_item_history">ब्राउज़िंग इतिहास</string>
+    <string name="delete_item_history_sub">वे पेज जिन्हें आपने देखा है</string>
+    <string name="delete_item_cookies">कुकीज़ और साइट डेटा</string>
+    <string name="delete_item_cookies_sub">अधिकांश साइटों से आपको साइन आउट कर देता है</string>
+    <string name="delete_item_cache">कैश की गई फ़ाइलें</string>
+    <string name="delete_item_cache_sub">स्टोरेज खाली करता है</string>
+
+    <string name="usage_today">आज</string>
+    <string name="usage_none">अभी तक कोई समय दर्ज नहीं</string>
+    <string name="usage_summary_one">1 साइट पर %1$s</string>
+    <string name="usage_summary_many">%2$d साइटों पर %1$s</string>
+    <string name="usage_empty">साइट समय सीमाएँ चालू रखकर थोड़ा ब्राउज़ करें और आपका उपयोग यहाँ दिखाई देगा।</string>
+    <string name="usage_site_limit">%1$s / %2$d मि</string>
+
+    <string name="limit_reached_title">दैनिक सीमा पूरी हुई</string>
+    <string name="limit_reached_message">आपने %2$s पर अपने दैनिक %1$d मिनट उपयोग कर लिए हैं। कल फिर आएँ।</string>
+    <string name="tab_label_new">नया टैब</string>
+    <string name="tabs_search_hint">अपने टैब खोजें</string>
+
+    <string name="settings_summary_off">बंद</string>
+    <string name="bg_sites_none">कोई साइट नहीं जोड़ी गई</string>
+    <string name="bg_sites_one">1 साइट</string>
+    <string name="bg_sites_many">%1$d साइटें</string>
+
+    <string name="language_system_default">सिस्टम डिफ़ॉल्ट</string>
+    <string name="compartment_about_tor">Tor के बारे में</string>
+    <string name="compartment_tor_desc">Tor आपके ट्रैफ़िक को तीन स्वयंसेवी रिले के माध्यम से भेजता है, इसलिए साइटें आपके असली पते के बजाय एक Tor निकास नोड देखती हैं। यह सीधे कनेक्शन से धीमा है, और कुछ साइटें Tor निकास नोड्स को ब्लॉक करती हैं।</string>
+    <string name="compartment_verification">सत्यापन</string>
+    <string name="compartment_tor_check">जाँचें कि यह ब्राउज़र Tor उपयोग करता है</string>
+    <string name="compartment_tor_check_sub">check.torproject.org खोलता है</string>
+    <string name="compartment_i2p_keep_title">I2P को पृष्ठभूमि में चालू रखें</string>
+    <string name="compartment_i2p_keep_sub">I2P कम्पार्टमेंट छोड़ने के बाद भी I2P नेटवर्क से जुड़े रहें, ताकि यह तुरंत फिर से जुड़ जाए।</string>
+    <string name="compartment_i2p_addressbook">पता-पुस्तिका सदस्यताएँ</string>
+    <string name="compartment_i2p_addressbook_sub">I2P के भीतर से hosts.txt सूचियाँ प्राप्त करता है ताकि .i2p साइटें (reg.i2p, stats.i2p…) जंप सेवा की आवश्यकता के बिना स्वतः हल हो जाएँ। अगली बार I2P शुरू होने पर लागू होगा।</string>
+    <string name="compartment_about_i2p">I2P के बारे में</string>
+    <string name="compartment_i2p_desc">I2P एक पीयर-टू-पीयर गुमनाम नेटवर्क है। .i2p eepsites सीधे I2P के भीतर लोड होती हैं; सामान्य वेबसाइटें सार्वजनिक I2P आउटप्रॉक्सी के माध्यम से रूट होती हैं। पहली बार उपयोग पर टनल बनाने में एक मिनट लग सकता है।</string>
+    <string name="compartment_normal_desc">बिना किसी गुमनामी परत वाला सीधा कनेक्शन — सबसे तेज़ विकल्प, लेकिन वेबसाइटें आपका असली IP पता देखती हैं। निजी रूप से ब्राउज़ करने के लिए नेटवर्क बटन से Tor या I2P पर स्विच करें।</string>
 </resources>

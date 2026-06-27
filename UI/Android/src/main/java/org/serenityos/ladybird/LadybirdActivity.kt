@@ -387,8 +387,8 @@ class LadybirdActivity : AppCompatActivity() {
             if (!limitDialogShowing) {
                 limitDialogShowing = true
                 MaterialAlertDialogBuilder(this)
-                    .setTitle("Daily limit reached")
-                    .setMessage("You've used your daily $minutes min on $host. Come back tomorrow.")
+                    .setTitle(R.string.limit_reached_title)
+                    .setMessage(getString(R.string.limit_reached_message, minutes, host))
                     .setPositiveButton(android.R.string.ok, null)
                     .setOnDismissListener { limitDialogShowing = false }
                     .show()
@@ -721,9 +721,9 @@ class LadybirdActivity : AppCompatActivity() {
             val theme = NetworkTheme.of(mode)
             val selected = settings.networkMode == mode
             val subtitle = when (mode) {
-                NetworkMode.Normal -> "Direct connection"
-                NetworkMode.Tor -> "Onion routing — anonymous"
-                NetworkMode.I2P -> "Invisible internet"
+                NetworkMode.Normal -> getString(R.string.compartment_normal_subtitle)
+                NetworkMode.Tor -> getString(R.string.compartment_tor_subtitle)
+                NetworkMode.I2P -> getString(R.string.compartment_i2p_subtitle)
             }
             val row = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.HORIZONTAL
@@ -1158,7 +1158,7 @@ class LadybirdActivity : AppCompatActivity() {
             gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(dp(8), 0, dp(8), dp(8))
             addView(android.widget.TextView(this@LadybirdActivity).apply {
-                text = "Tabs"
+                text = getString(R.string.browser_tabs)
                 textSize = 22f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(onSurface)
@@ -1187,7 +1187,7 @@ class LadybirdActivity : AppCompatActivity() {
         fun makeCard(i: Int): View {
             val tab = tabs.all()[i]
             val active = i == tabs.activeIndex
-            val label = if (isNewTabUrl(tab.url)) "New tab" else tab.title.ifBlank { tab.url }
+            val label = if (isNewTabUrl(tab.url)) getString(R.string.tab_label_new) else tab.title.ifBlank { tab.url }
             val host = (runCatching { android.net.Uri.parse(tab.url).host }.getOrNull() ?: "")
                 .removePrefix("www.")
             val compColor = compartmentColor(tab.networkMode)
@@ -1273,7 +1273,7 @@ class LadybirdActivity : AppCompatActivity() {
                 })
             } else {
                 card.addView(android.widget.TextView(this).apply {
-                    text = if (isNewTabUrl(tab.url)) "New tab" else host.ifBlank { tab.url }
+                    text = if (isNewTabUrl(tab.url)) getString(R.string.tab_label_new) else host.ifBlank { tab.url }
                     setTextColor(muted)
                     textSize = 12f
                     gravity = android.view.Gravity.CENTER
@@ -1292,7 +1292,7 @@ class LadybirdActivity : AppCompatActivity() {
 
         // "Search your tabs" field (Vanadium-style), filters the grid live.
         val search = android.widget.EditText(this).apply {
-            hint = "Search your tabs"
+            hint = getString(R.string.tabs_search_hint)
             setHintTextColor(muted)
             setTextColor(onSurface)
             textSize = 15f

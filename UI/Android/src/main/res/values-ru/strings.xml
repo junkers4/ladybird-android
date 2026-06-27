@@ -162,4 +162,74 @@
     <string name="compartment_normal_subtitle">Прямое соединение</string>
     <string name="settings_i2p_keep">Не выключать I2P</string>
     <string name="settings_i2p_keep_summary">Оставаться подключённым к сети I2P в фоне, чтобы туннели были готовы. Рекомендуется.</string>
+
+    <string name="app_name">Ladybird</string>
+    <string name="bootstrap_percent">%1$d%%</string>
+    <string name="find_in_page_counter">%1$d / %2$d</string>
+    <string name="search_engine_google">Google</string>
+    <string name="search_engine_duckduckgo">DuckDuckGo</string>
+    <string name="search_engine_bing">Bing</string>
+    <string name="search_engine_kagi">Kagi</string>
+    <string name="search_engine_brave">Brave</string>
+    <string name="search_engine_ecosia">Ecosia</string>
+
+    <string name="settings_ad_block">Блокировать рекламу и трекеры</string>
+    <string name="settings_ad_block_summary">Блокирует рекламу и отслеживание с помощью списков фильтров EasyList и Brave и скрывает оставшиеся рекламные блоки на странице.</string>
+    <string name="settings_https_only">Всегда использовать HTTPS</string>
+    <string name="settings_https_only_summary">Обновляет небезопасные страницы http:// до https://, когда это возможно. Отправляет Global Privacy Control с каждым запросом.</string>
+
+    <string name="bg_audio_title">Фоновое воспроизведение</string>
+    <string name="bg_audio_summary">Разрешите этим сайтам продолжать воспроизводить звук, когда вы выходите из приложения или блокируете экран. Остальные сайты останавливаются для экономии заряда батареи.</string>
+    <string name="bg_audio_enable">Разрешить фоновое воспроизведение</string>
+    <string name="bg_audio_add">Добавить сайт</string>
+    <string name="bg_audio_empty">Пока нет сайтов.\nДобавьте сайт (например, youtube.com), чтобы его звук продолжал играть в фоне.</string>
+    <string name="bg_audio_hint">Сайт (например, youtube.com)</string>
+    <string name="bg_audio_notification_title">Воспроизведение в фоне</string>
+    <string name="bg_audio_channel_name">Фоновое воспроизведение</string>
+
+    <string name="delete_range_title">Период времени</string>
+    <string name="delete_range_last_hour">За последний час</string>
+    <string name="delete_range_24h">За последние 24 часа</string>
+    <string name="delete_range_7d">За последние 7 дней</string>
+    <string name="delete_range_4w">За последние 4 недели</string>
+    <string name="delete_range_all">За всё время</string>
+    <string name="delete_range_custom">Другой…</string>
+    <string name="delete_range_since">С %1$s</string>
+    <string name="delete_item_history">История просмотров</string>
+    <string name="delete_item_history_sub">Посещённые вами страницы</string>
+    <string name="delete_item_cookies">Файлы cookie и данные сайтов</string>
+    <string name="delete_item_cookies_sub">Выход из большинства сайтов</string>
+    <string name="delete_item_cache">Кэшированные файлы</string>
+    <string name="delete_item_cache_sub">Освобождает память</string>
+
+    <string name="usage_today">Сегодня</string>
+    <string name="usage_none">Время пока не учтено</string>
+    <string name="usage_summary_one">%1$s на 1 сайте</string>
+    <string name="usage_summary_many">%1$s на %2$d сайтах</string>
+    <string name="usage_empty">Немного побродите по сайтам с включёнными лимитами времени, и ваша статистика появится здесь.</string>
+    <string name="usage_site_limit">%1$s / %2$d мин</string>
+
+    <string name="limit_reached_title">Дневной лимит достигнут</string>
+    <string name="limit_reached_message">Вы израсходовали свои %1$d мин в день на %2$s. Возвращайтесь завтра.</string>
+    <string name="tab_label_new">Новая вкладка</string>
+    <string name="tabs_search_hint">Поиск по вкладкам</string>
+
+    <string name="settings_summary_off">Выключено</string>
+    <string name="bg_sites_none">Сайты не добавлены</string>
+    <string name="bg_sites_one">1 сайт</string>
+    <string name="bg_sites_many">%1$d сайтов</string>
+
+    <string name="language_system_default">Системный по умолчанию</string>
+    <string name="compartment_about_tor">О сети Tor</string>
+    <string name="compartment_tor_desc">Tor направляет ваш трафик через три добровольных узла, поэтому сайты видят выходной узел Tor вместо вашего настоящего адреса. Это медленнее прямого подключения, и некоторые сайты блокируют выходные узлы Tor.</string>
+    <string name="compartment_verification">Проверка</string>
+    <string name="compartment_tor_check">Проверить, что браузер использует Tor</string>
+    <string name="compartment_tor_check_sub">Откроет check.torproject.org</string>
+    <string name="compartment_i2p_keep_title">Держать I2P запущенным в фоне</string>
+    <string name="compartment_i2p_keep_sub">Оставаться подключённым к сети I2P даже после выхода из отсека I2P, чтобы он мгновенно переподключался.</string>
+    <string name="compartment_i2p_addressbook">Подписки адресной книги</string>
+    <string name="compartment_i2p_addressbook_sub">Загружает списки hosts.txt изнутри I2P, чтобы сайты .i2p (reg.i2p, stats.i2p…) разрешались автоматически без службы переходов. Применяется при следующем запуске I2P.</string>
+    <string name="compartment_about_i2p">О сети I2P</string>
+    <string name="compartment_i2p_desc">I2P — это одноранговая анонимная сеть. Сайты .i2p (eepsites) загружаются прямо внутри I2P; обычные сайты направляются через публичный outproxy I2P. Построение туннелей при первом использовании может занять минуту.</string>
+    <string name="compartment_normal_desc">Прямое подключение без слоя анонимности — самый быстрый вариант, но сайты видят ваш настоящий IP-адрес. Когда хотите просматривать приватно, переключитесь на Tor или I2P кнопкой сети.</string>
 </resources>

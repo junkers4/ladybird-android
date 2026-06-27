@@ -94,7 +94,7 @@
 
                 <LinearLayout android:id="@+id/rowSiteLimits" style="@style/Chromium.SettingsRow">
                     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                        <TextView style="@style/Chromium.SettingsTitle" android:text="Site time limits" />
+                        <TextView style="@style/Chromium.SettingsTitle" android:text="@string/limits_title" />
                         <TextView android:id="@+id/siteLimitsSummary" style="@style/Chromium.SettingsSummary" />
                     </LinearLayout>
                 </LinearLayout>

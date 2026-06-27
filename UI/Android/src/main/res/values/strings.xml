@@ -184,4 +184,50 @@
     <string name="compartment_normal_subtitle">Direct connection</string>
     <string name="settings_i2p_keep">Keep I2P running</string>
     <string name="settings_i2p_keep_summary">Stay connected to the I2P network in the background so tunnels stay ready. Recommended.</string>
+
+    <string name="delete_range_title">Time range</string>
+    <string name="delete_range_last_hour">Last hour</string>
+    <string name="delete_range_24h">Last 24 hours</string>
+    <string name="delete_range_7d">Last 7 days</string>
+    <string name="delete_range_4w">Last 4 weeks</string>
+    <string name="delete_range_all">All time</string>
+    <string name="delete_range_custom">Custom…</string>
+    <string name="delete_range_since">Since %1$s</string>
+    <string name="delete_item_history">Browsing history</string>
+    <string name="delete_item_history_sub">Pages you\'ve visited</string>
+    <string name="delete_item_cookies">Cookies and site data</string>
+    <string name="delete_item_cookies_sub">Signs you out of most sites</string>
+    <string name="delete_item_cache">Cached files</string>
+    <string name="delete_item_cache_sub">Frees up storage</string>
+
+    <string name="usage_today">Today</string>
+    <string name="usage_none">No time tracked yet</string>
+    <string name="usage_summary_one">%1$s across 1 site</string>
+    <string name="usage_summary_many">%1$s across %2$d sites</string>
+    <string name="usage_empty">Browse a little with site time limits on and your usage will show up here.</string>
+    <string name="usage_site_limit">%1$s / %2$dm</string>
+
+    <string name="limit_reached_title">Daily limit reached</string>
+    <string name="limit_reached_message">You\'ve used your daily %1$d min on %2$s. Come back tomorrow.</string>
+    <string name="tab_label_new">New tab</string>
+    <string name="tabs_search_hint">Search your tabs</string>
+
+    <string name="settings_summary_off">Off</string>
+    <string name="bg_sites_none">No sites added</string>
+    <string name="bg_sites_one">1 site</string>
+    <string name="bg_sites_many">%1$d sites</string>
+
+    <string name="language_system_default">System default</string>
+    <string name="compartment_about_tor">About Tor</string>
+    <string name="compartment_tor_desc">Tor sends your traffic through three volunteer relays, so sites see a Tor exit node instead of your real address. It is slower than a direct connection, and some sites block Tor exit nodes.</string>
+    <string name="compartment_verification">Verification</string>
+    <string name="compartment_tor_check">Check this browser uses Tor</string>
+    <string name="compartment_tor_check_sub">Opens check.torproject.org</string>
+    <string name="compartment_i2p_keep_title">Keep I2P running in the background</string>
+    <string name="compartment_i2p_keep_sub">Stay connected to the I2P network even after leaving the I2P compartment, so it reconnects instantly.</string>
+    <string name="compartment_i2p_addressbook">Addressbook subscriptions</string>
+    <string name="compartment_i2p_addressbook_sub">Fetch hosts.txt lists from inside I2P so .i2p sites (reg.i2p, stats.i2p…) resolve automatically instead of needing a jump service. Applies next time I2P starts.</string>
+    <string name="compartment_about_i2p">About I2P</string>
+    <string name="compartment_i2p_desc">I2P is a peer-to-peer anonymous network. .i2p eepsites load directly inside I2P; ordinary websites are routed through a public I2P outproxy. Building tunnels can take a minute on first use.</string>
+    <string name="compartment_normal_desc">A direct connection with no anonymity layer — the fastest option, but websites see your real IP address. Switch to Tor or I2P from the network button when you want to browse privately.</string>
 </resources>

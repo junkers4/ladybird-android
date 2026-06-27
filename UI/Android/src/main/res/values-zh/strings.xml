@@ -162,4 +162,74 @@
     <string name="compartment_normal_subtitle">直接连接</string>
     <string name="settings_i2p_keep">保持 I2P 运行</string>
     <string name="settings_i2p_keep_summary">在后台保持连接到 I2P 网络，使隧道保持就绪。推荐。</string>
+
+    <string name="app_name">Ladybird</string>
+    <string name="bootstrap_percent">%1$d%%</string>
+    <string name="find_in_page_counter">%1$d / %2$d</string>
+    <string name="search_engine_google">Google</string>
+    <string name="search_engine_duckduckgo">DuckDuckGo</string>
+    <string name="search_engine_bing">Bing</string>
+    <string name="search_engine_kagi">Kagi</string>
+    <string name="search_engine_brave">Brave</string>
+    <string name="search_engine_ecosia">Ecosia</string>
+
+    <string name="settings_ad_block">拦截广告和跟踪器</string>
+    <string name="settings_ad_block_summary">使用 EasyList 和 Brave 过滤列表拦截广告和跟踪，并隐藏页面上残留的广告位。</string>
+    <string name="settings_https_only">始终使用 HTTPS</string>
+    <string name="settings_https_only_summary">尽可能将不安全的 http:// 页面升级为 https://。每次请求都会发送 Global Privacy Control。</string>
+
+    <string name="bg_audio_title">后台播放</string>
+    <string name="bg_audio_summary">允许这些网站在你离开应用或锁定屏幕时继续播放音频。其他网站将停止，以节省电量。</string>
+    <string name="bg_audio_enable">允许后台播放</string>
+    <string name="bg_audio_add">添加网站</string>
+    <string name="bg_audio_empty">还没有网站。\n添加一个网站（例如 youtube.com），让它的音频在后台继续播放。</string>
+    <string name="bg_audio_hint">网站（例如 youtube.com）</string>
+    <string name="bg_audio_notification_title">正在后台播放</string>
+    <string name="bg_audio_channel_name">后台播放</string>
+
+    <string name="delete_range_title">时间范围</string>
+    <string name="delete_range_last_hour">过去一小时</string>
+    <string name="delete_range_24h">过去 24 小时</string>
+    <string name="delete_range_7d">过去 7 天</string>
+    <string name="delete_range_4w">过去 4 周</string>
+    <string name="delete_range_all">全部时间</string>
+    <string name="delete_range_custom">自定义…</string>
+    <string name="delete_range_since">自 %1$s 起</string>
+    <string name="delete_item_history">浏览历史</string>
+    <string name="delete_item_history_sub">你访问过的页面</string>
+    <string name="delete_item_cookies">Cookie 和网站数据</string>
+    <string name="delete_item_cookies_sub">会让你退出大多数网站的登录</string>
+    <string name="delete_item_cache">缓存文件</string>
+    <string name="delete_item_cache_sub">释放存储空间</string>
+
+    <string name="usage_today">今天</string>
+    <string name="usage_none">尚未记录时间</string>
+    <string name="usage_summary_one">%1$s，共 1 个网站</string>
+    <string name="usage_summary_many">%1$s，共 %2$d 个网站</string>
+    <string name="usage_empty">在开启网站时间限制的情况下浏览一会儿，你的使用情况就会显示在这里。</string>
+    <string name="usage_site_limit">%1$s / %2$d 分钟</string>
+
+    <string name="limit_reached_title">已达每日限制</string>
+    <string name="limit_reached_message">你今天在 %2$s 上已用完每日 %1$d 分钟。明天再来吧。</string>
+    <string name="tab_label_new">新标签页</string>
+    <string name="tabs_search_hint">搜索标签页</string>
+
+    <string name="settings_summary_off">关闭</string>
+    <string name="bg_sites_none">未添加网站</string>
+    <string name="bg_sites_one">1 个网站</string>
+    <string name="bg_sites_many">%1$d 个网站</string>
+
+    <string name="language_system_default">系统默认</string>
+    <string name="compartment_about_tor">关于 Tor</string>
+    <string name="compartment_tor_desc">Tor 会将你的流量通过三个志愿者中继转发，因此网站看到的是 Tor 出口节点而不是你的真实地址。它比直接连接慢，而且有些网站会屏蔽 Tor 出口节点。</string>
+    <string name="compartment_verification">验证</string>
+    <string name="compartment_tor_check">检查此浏览器是否使用 Tor</string>
+    <string name="compartment_tor_check_sub">打开 check.torproject.org</string>
+    <string name="compartment_i2p_keep_title">在后台保持 I2P 运行</string>
+    <string name="compartment_i2p_keep_sub">即使离开 I2P 隔间也保持连接到 I2P 网络，以便即时重新连接。</string>
+    <string name="compartment_i2p_addressbook">地址簿订阅</string>
+    <string name="compartment_i2p_addressbook_sub">从 I2P 内部获取 hosts.txt 列表，使 .i2p 网站（reg.i2p、stats.i2p…）自动解析，无需跳转服务。将在下次启动 I2P 时生效。</string>
+    <string name="compartment_about_i2p">关于 I2P</string>
+    <string name="compartment_i2p_desc">I2P 是一个点对点匿名网络。.i2p eepsite 直接在 I2P 内部加载；普通网站则通过公共 I2P 出口代理路由。首次使用时建立隧道可能需要一分钟。</string>
+    <string name="compartment_normal_desc">没有匿名层的直接连接——最快的选项，但网站会看到你的真实 IP 地址。想要私密浏览时，请通过网络按钮切换到 Tor 或 I2P。</string>
 </resources>

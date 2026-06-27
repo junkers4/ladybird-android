@@ -162,4 +162,74 @@
     <string name="compartment_normal_subtitle">Conexión directa</string>
     <string name="settings_i2p_keep">Mantener I2P en ejecución</string>
     <string name="settings_i2p_keep_summary">Permanecer conectado a la red I2P en segundo plano para que los túneles estén listos. Recomendado.</string>
+
+    <string name="app_name">Ladybird</string>
+    <string name="bootstrap_percent">%1$d%%</string>
+    <string name="find_in_page_counter">%1$d / %2$d</string>
+    <string name="search_engine_google">Google</string>
+    <string name="search_engine_duckduckgo">DuckDuckGo</string>
+    <string name="search_engine_bing">Bing</string>
+    <string name="search_engine_kagi">Kagi</string>
+    <string name="search_engine_brave">Brave</string>
+    <string name="search_engine_ecosia">Ecosia</string>
+
+    <string name="settings_ad_block">Bloquear anuncios y rastreadores</string>
+    <string name="settings_ad_block_summary">Bloquea la publicidad y el rastreo usando las listas de filtros EasyList y Brave, y oculta los espacios publicitarios restantes en la página.</string>
+    <string name="settings_https_only">Usar siempre HTTPS</string>
+    <string name="settings_https_only_summary">Actualiza las páginas http:// inseguras a https:// cuando sea posible. Envía Global Privacy Control en cada solicitud.</string>
+
+    <string name="bg_audio_title">Reproducción en segundo plano</string>
+    <string name="bg_audio_summary">Permite que estos sitios sigan reproduciendo audio cuando sales de la app o bloqueas la pantalla. Los demás sitios se detienen para ahorrar batería.</string>
+    <string name="bg_audio_enable">Permitir reproducción en segundo plano</string>
+    <string name="bg_audio_add">Añadir un sitio</string>
+    <string name="bg_audio_empty">Aún no hay sitios.\nAñade un sitio (p. ej. youtube.com) para mantener su audio reproduciéndose en segundo plano.</string>
+    <string name="bg_audio_hint">Sitio (p. ej. youtube.com)</string>
+    <string name="bg_audio_notification_title">Reproduciendo en segundo plano</string>
+    <string name="bg_audio_channel_name">Reproducción en segundo plano</string>
+
+    <string name="delete_range_title">Intervalo de tiempo</string>
+    <string name="delete_range_last_hour">Última hora</string>
+    <string name="delete_range_24h">Últimas 24 horas</string>
+    <string name="delete_range_7d">Últimos 7 días</string>
+    <string name="delete_range_4w">Últimas 4 semanas</string>
+    <string name="delete_range_all">Todo el tiempo</string>
+    <string name="delete_range_custom">Personalizado…</string>
+    <string name="delete_range_since">Desde %1$s</string>
+    <string name="delete_item_history">Historial de navegación</string>
+    <string name="delete_item_history_sub">Páginas que has visitado</string>
+    <string name="delete_item_cookies">Cookies y datos de sitios</string>
+    <string name="delete_item_cookies_sub">Cierra tu sesión en la mayoría de sitios</string>
+    <string name="delete_item_cache">Archivos en caché</string>
+    <string name="delete_item_cache_sub">Libera almacenamiento</string>
+
+    <string name="usage_today">Hoy</string>
+    <string name="usage_none">Aún no hay tiempo registrado</string>
+    <string name="usage_summary_one">%1$s en 1 sitio</string>
+    <string name="usage_summary_many">%1$s en %2$d sitios</string>
+    <string name="usage_empty">Navega un poco con los límites de tiempo de sitios activados y tu uso aparecerá aquí.</string>
+    <string name="usage_site_limit">%1$s / %2$d min</string>
+
+    <string name="limit_reached_title">Límite diario alcanzado</string>
+    <string name="limit_reached_message">Has usado tus %1$d min diarios en %2$s. Vuelve mañana.</string>
+    <string name="tab_label_new">Nueva pestaña</string>
+    <string name="tabs_search_hint">Buscar en tus pestañas</string>
+
+    <string name="settings_summary_off">Desactivado</string>
+    <string name="bg_sites_none">No hay sitios añadidos</string>
+    <string name="bg_sites_one">1 sitio</string>
+    <string name="bg_sites_many">%1$d sitios</string>
+
+    <string name="language_system_default">Predeterminado del sistema</string>
+    <string name="compartment_about_tor">Acerca de Tor</string>
+    <string name="compartment_tor_desc">Tor envía tu tráfico a través de tres repetidores voluntarios, de modo que los sitios ven un nodo de salida de Tor en lugar de tu dirección real. Es más lento que una conexión directa y algunos sitios bloquean los nodos de salida de Tor.</string>
+    <string name="compartment_verification">Verificación</string>
+    <string name="compartment_tor_check">Comprobar que el navegador usa Tor</string>
+    <string name="compartment_tor_check_sub">Abre check.torproject.org</string>
+    <string name="compartment_i2p_keep_title">Mantener I2P en ejecución en segundo plano</string>
+    <string name="compartment_i2p_keep_sub">Permanecer conectado a la red I2P incluso tras salir del compartimento I2P, para que se reconecte al instante.</string>
+    <string name="compartment_i2p_addressbook">Suscripciones de la libreta de direcciones</string>
+    <string name="compartment_i2p_addressbook_sub">Obtiene listas hosts.txt desde dentro de I2P para que los sitios .i2p (reg.i2p, stats.i2p…) se resuelvan automáticamente sin necesidad de un servicio de salto. Se aplica la próxima vez que se inicie I2P.</string>
+    <string name="compartment_about_i2p">Acerca de I2P</string>
+    <string name="compartment_i2p_desc">I2P es una red anónima peer-to-peer. Los eepsites .i2p se cargan directamente dentro de I2P; los sitios web normales se enrutan a través de un outproxy público de I2P. Construir los túneles puede tardar un minuto la primera vez.</string>
+    <string name="compartment_normal_desc">Una conexión directa sin capa de anonimato: la opción más rápida, pero los sitios web ven tu dirección IP real. Cambia a Tor o I2P desde el botón de red cuando quieras navegar en privado.</string>
 </resources>

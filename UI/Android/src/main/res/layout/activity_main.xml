@@ -141,6 +141,7 @@
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:contentDescription="@string/net_mode_switch"
                         android:padding="8dp"
+                        android:scaleType="fitCenter"
                         android:src="@drawable/ic_globe"
                         android:tint="@color/ladybird_on_surface" />
 

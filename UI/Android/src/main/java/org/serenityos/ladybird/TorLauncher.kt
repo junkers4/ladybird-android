@@ -139,6 +139,16 @@ class TorLauncher(private val context: Context) : DaemonLauncher {
                 // …or, if the control port is up but its bootstrap phase simply
                 // can't be read after a while, trust STATUS_ON as a fallback.
                 if (torControlUp && nullReads >= NULL_READS_BEFORE_READY) { reportReady(); break }
+                // …or, if the control port is up but bootstrap has stalled below
+                // 100% for too long (common on roaming/restrictive networks where
+                // a full circuit never completes), stop waiting and route through
+                // the SOCKS proxy anyway rather than leaving the user stuck on the
+                // loading screen forever. Tor keeps finishing the remaining legs in
+                // the background and serves the stream once it's actually requested.
+                if (torControlUp && System.currentTimeMillis() - startedAt >= MAX_BOOTSTRAP_MS) {
+                    Log.i(TAG, "Tor bootstrap stalled at ${real ?: 0}%; proceeding via SOCKS anyway")
+                    reportReady(); break
+                }
                 try { Thread.sleep(POLL_MS) } catch (_: InterruptedException) { break }
             }
         }.also { it.isDaemon = true; it.start() }
@@ -185,6 +195,9 @@ class TorLauncher(private val context: Context) : DaemonLauncher {
         // ~10s of unreadable bootstrap phase after the control port is up before
         // we trust STATUS_ON and report ready anyway.
         private const val NULL_READS_BEFORE_READY = 25
+        // Hard cap on how long we wait for a full bootstrap once tor's control
+        // port is up. Past this, we route via SOCKS even if stuck below 100%.
+        private const val MAX_BOOTSTRAP_MS = 60_000L
         private val PROGRESS_RE = Regex("PROGRESS=(\\d+)")
     }
 }

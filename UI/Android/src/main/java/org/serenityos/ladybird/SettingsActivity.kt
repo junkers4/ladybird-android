@@ -71,7 +71,7 @@ class SettingsActivity : AppCompatActivity() {
             val langs = AppLanguage.entries
             singleChoiceDialog(
                 R.string.settings_language,
-                langs.map { it.displayName },
+                langs.map { langName(it) },
                 langs.indexOf(settings.language)
             ) { idx ->
                 settings.language = langs[idx]
@@ -185,24 +185,31 @@ class SettingsActivity : AppCompatActivity() {
         window.statusBarColor = bar
     }
 
+    /** Language names show in their own language, except the system option,
+     *  which is localized to the current UI language. */
+    private fun langName(l: AppLanguage): String =
+        if (l == AppLanguage.System) getString(R.string.language_system_default) else l.displayName
+
     private fun refreshSummaries() {
         binding.searchEngineSummary.text = settings.searchEngine.displayName
         binding.homePageSummary.text = settings.homePage
         binding.colorSchemeSummary.text = settings.colorScheme.name
-        binding.languageSummary.text = settings.language.displayName
+        binding.languageSummary.text = langName(settings.language)
         binding.userAgentSummary.text = settings.userAgent.displayName
         binding.navCompatSummary.text = settings.navigatorCompatibility.displayName
         val limitCount = settings.siteLimits().size
         binding.siteLimitsSummary.text = when {
-            !settings.siteLimitsEnabled -> "Off"
-            limitCount == 0 -> "No limits set"
-            else -> "$limitCount site(s) limited"
+            !settings.siteLimitsEnabled -> getString(R.string.settings_summary_off)
+            limitCount == 0 -> getString(R.string.limits_subtitle_zero)
+            limitCount == 1 -> getString(R.string.limits_subtitle_one)
+            else -> getString(R.string.limits_subtitle_many, limitCount)
         }
         val bgCount = settings.backgroundAudioSites().size
         binding.backgroundAudioSummary.text = when {
-            !settings.backgroundAudioEnabled -> "Off"
-            bgCount == 0 -> "No sites added"
-            else -> "$bgCount site(s)"
+            !settings.backgroundAudioEnabled -> getString(R.string.settings_summary_off)
+            bgCount == 0 -> getString(R.string.bg_sites_none)
+            bgCount == 1 -> getString(R.string.bg_sites_one)
+            else -> getString(R.string.bg_sites_many, bgCount)
         }
     }
 

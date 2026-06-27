@@ -60,14 +60,18 @@ class UsageOverviewActivity : AppCompatActivity() {
 
         // Header card: total time today.
         container.addView(TextView(this).apply {
-            text = "Today"
+            text = getString(R.string.usage_today)
             setTextColor(color(R.color.ladybird_on_surface_muted))
             textSize = 14f
             setTypeface(typeface, Typeface.BOLD)
             setPadding(dp(24), dp(20), dp(24), dp(2))
         })
         container.addView(TextView(this).apply {
-            text = if (totalSeconds == 0) "No time tracked yet" else "${fmt(totalSeconds)} across ${usage.size} site${if (usage.size == 1) "" else "s"}"
+            text = when {
+                totalSeconds == 0 -> getString(R.string.usage_none)
+                usage.size == 1 -> getString(R.string.usage_summary_one, fmt(totalSeconds))
+                else -> getString(R.string.usage_summary_many, fmt(totalSeconds), usage.size)
+            }
             setTextColor(color(R.color.ladybird_on_surface))
             textSize = 24f
             setTypeface(typeface, Typeface.BOLD)
@@ -76,7 +80,7 @@ class UsageOverviewActivity : AppCompatActivity() {
 
         if (usage.isEmpty()) {
             container.addView(TextView(this).apply {
-                text = "Browse a little with site time limits on and your usage will show up here."
+                text = getString(R.string.usage_empty)
                 setTextColor(color(R.color.ladybird_on_surface_muted))
                 textSize = 14f
                 setPadding(dp(24), dp(8), dp(24), 0)
@@ -106,7 +110,7 @@ class UsageOverviewActivity : AppCompatActivity() {
                         layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
                     })
                     addView(TextView(this@UsageOverviewActivity).apply {
-                        text = if (limit != null) "${fmt(seconds)} / ${limit}m" else fmt(seconds)
+                        text = if (limit != null) getString(R.string.usage_site_limit, fmt(seconds), limit) else fmt(seconds)
                         setTextColor(if (reached) barColor else color(R.color.ladybird_on_surface_muted))
                         textSize = 13f
                     })
