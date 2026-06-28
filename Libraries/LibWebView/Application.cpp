@@ -540,8 +540,9 @@ u64 Application::allocate_page_id()
 
 Web::Compositor::CompositorContextId Application::allocate_compositor_context_id()
 {
-    VERIFY(m_next_page_or_compositor_context_id > 0);
-    return Web::Compositor::CompositorContextId { m_next_page_or_compositor_context_id++ };
+    // Disjoint high range so a standalone (iframe) context can never equal a
+    // page's deterministic context id (== page id). See the field comment.
+    return Web::Compositor::CompositorContextId { m_next_standalone_compositor_context_id++ };
 }
 
 static bool can_send_compositor_process_ipc(RefPtr<CompositorClient> const& compositor_client)

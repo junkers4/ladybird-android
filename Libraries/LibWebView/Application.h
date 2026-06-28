@@ -344,6 +344,14 @@ private:
     RefPtr<WebContentClient> m_spare_web_content_process;
     bool m_has_queued_task_to_launch_spare_web_content_process { false };
     u64 m_next_page_or_compositor_context_id { 1 };
+    // Standalone compositor contexts (child navigables / iframes) must never be
+    // assigned an id equal to a page's deterministic context id, which is the
+    // page id itself (see Web::Compositor::compositor_context_id_for_page). Page
+    // ids are small and sequential, so allocate standalone context ids from a
+    // disjoint high range. Without this, the first iframe could grab id 1 — the
+    // same context as the top-level page — and publishing that iframe to a
+    // surface would flip the whole page offscreen (blank render; e.g. 9gag).
+    u64 m_next_standalone_compositor_context_id { 0x1'0000'0000 };
 
     RefPtr<Database::Database> m_database;
     RefPtr<Database::Database> m_history_database;
