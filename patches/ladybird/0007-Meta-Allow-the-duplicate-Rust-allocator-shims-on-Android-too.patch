@@ -1,0 +1,61 @@
+Meta: Allow the duplicate Rust allocator shims on Android too
+
+Every Rust staticlib carries the same allocator shim symbols, which all forward
+to AK's kmalloc. Static links on Linux and BSD already pass
+--allow-multiple-definition for this, but CMake does not set LINUX when
+targeting Android, so linking failed with "duplicate symbol:
+__rustc::__rust_alloc".
+
+Requirement: BLD-006
+
+diff --git a/Libraries/LibCompositing/CMakeLists.txt b/Libraries/LibCompositing/CMakeLists.txt
+index e1a00902..b4db85f4 100644
+--- a/Libraries/LibCompositing/CMakeLists.txt
++++ b/Libraries/LibCompositing/CMakeLists.txt
+@@ -69,7 +69,7 @@ foreach(angle_target IN LISTS ANGLE_TARGETS)
+ endforeach()
+ 
+ get_target_property(_libcompositing_rust_lib libcompositing_rust IMPORTED_LOCATION)
+-if ((LINUX OR BSD) AND NOT BUILD_SHARED_LIBS)
++if ((LINUX OR BSD OR ANDROID) AND NOT BUILD_SHARED_LIBS)
+     target_link_options(LibCompositing INTERFACE LINKER:--allow-multiple-definition)
+ endif()
+ if ((LINUX OR BSD) AND BUILD_SHARED_LIBS)
+diff --git a/Libraries/LibJS/CMakeLists.txt b/Libraries/LibJS/CMakeLists.txt
+index 7485a496..48330be2 100644
+--- a/Libraries/LibJS/CMakeLists.txt
++++ b/Libraries/LibJS/CMakeLists.txt
+@@ -307,7 +307,7 @@ target_link_libraries(LibJS PUBLIC JSClangPlugin)
+ 
+ import_rust_crate(MANIFEST_PATH Rust/Cargo.toml CRATE_NAME libjs_rust FFI_HEADER RustFFI.h)
+ target_link_libraries(LibJS PRIVATE libjs_rust)
+-if ((LINUX OR BSD) AND NOT BUILD_SHARED_LIBS)
++if ((LINUX OR BSD OR ANDROID) AND NOT BUILD_SHARED_LIBS)
+     # Rust staticlibs each carry the same allocator shim symbols. LibJS can
+     # pull in multiple crates' copies in static ELF links, but they all
+     # forward to the same ladybird_rust_* entry points in AK/kmalloc.cpp.
+diff --git a/Libraries/LibRegex/CMakeLists.txt b/Libraries/LibRegex/CMakeLists.txt
+index 26828179..03436cf3 100644
+--- a/Libraries/LibRegex/CMakeLists.txt
++++ b/Libraries/LibRegex/CMakeLists.txt
+@@ -7,6 +7,6 @@ ladybird_lib(LibRegex regex EXPLICIT_SYMBOL_EXPORT)
+ 
+ import_rust_crate(MANIFEST_PATH Rust/Cargo.toml CRATE_NAME libregex_rust FEATURES allocator FFI_HEADER RustFFI.h)
+ target_link_libraries(LibRegex PRIVATE libregex_rust LibUnicode)
+-if ((LINUX OR BSD) AND NOT BUILD_SHARED_LIBS)
++if ((LINUX OR BSD OR ANDROID) AND NOT BUILD_SHARED_LIBS)
+     target_link_options(LibRegex INTERFACE LINKER:--allow-multiple-definition)
+ endif()
+diff --git a/Libraries/LibWeb/CMakeLists.txt b/Libraries/LibWeb/CMakeLists.txt
+index a4211c28..b9115e7f 100644
+--- a/Libraries/LibWeb/CMakeLists.txt
++++ b/Libraries/LibWeb/CMakeLists.txt
+@@ -1246,7 +1246,7 @@ get_target_property(_libweb_content_blocker_rust_lib libweb_content_blocker_rust
+ set_property(SOURCE HTML/Parser/HTMLTokenizer.cpp APPEND PROPERTY OBJECT_DEPENDS ${_libweb_rust_lib})
+ set_property(SOURCE HTML/Parser/HTMLParser.cpp APPEND PROPERTY OBJECT_DEPENDS ${_libweb_rust_lib})
+ set_property(SOURCE HTML/Parser/SpeculativeHTMLParser.cpp APPEND PROPERTY OBJECT_DEPENDS ${_libweb_rust_lib})
+-if ((LINUX OR BSD) AND NOT BUILD_SHARED_LIBS)
++if ((LINUX OR BSD OR ANDROID) AND NOT BUILD_SHARED_LIBS)
+     target_link_options(LibWeb INTERFACE LINKER:--allow-multiple-definition)
+ endif()
+ 

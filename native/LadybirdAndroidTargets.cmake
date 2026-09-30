@@ -76,6 +76,9 @@ set_target_properties(ladybird_android PROPERTIES
 # Full RELRO and no lazy binding (requirement SEC-012). The NDK already enables
 # -fstack-protector-strong and _FORTIFY_SOURCE for all code it compiles.
 target_link_options(ladybird_android PRIVATE "-Wl,--no-undefined" "-Wl,-z,relro,-z,now")
+# Every Rust staticlib carries identical allocator shims (all forwarding to AK); upstream allows the duplicates the
+# same way for its static Linux links (see patch 0007).
+target_link_options(ladybird_android PRIVATE "LINKER:--allow-multiple-definition")
 
 # --- Staging -----------------------------------------------------------------------------------
 # Everything the APK needs ends up in ${LADYBIRD_ANDROID_STAGE_DIR}:
