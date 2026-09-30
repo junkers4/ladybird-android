@@ -78,6 +78,10 @@ jobs:
           "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "ndk;${NDK_VERSION}"
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "${GITHUB_ENV}"
 
+      # Before the cache steps: the vcpkg cache key hashes the patched vcpkg.json, like the save step does.
+      - name: Apply patches
+        run: python3 tools/build_native.py patches
+
       - name: Restore vcpkg binary cache
         uses: actions/cache/restore@v4
         with:
@@ -93,9 +97,6 @@ jobs:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-android-${{ env.ABI }}-${{ github.run_id }}
           restore-keys: ccache-android-${{ env.ABI }}-
-
-      - name: Apply patches
-        run: python3 tools/build_native.py patches
 
       - name: Build host tools
         run: python3 tools/build_native.py host-tools --abi "${ABI}"
