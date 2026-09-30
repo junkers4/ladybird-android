@@ -1,0 +1,118 @@
+LibJS: Support cross-compiling with prebuilt host tools
+
+LibJS runs three build-time tools: the Rust generate-libjs-bytecode and
+flapc binaries, and the C++ generate_interpreter_layout program. They are
+all built for the *target* platform, so a cross-compiled build (such as
+Android) produces binaries the build machine cannot execute.
+
+When CMAKE_CROSSCOMPILING is set, take them from LADYBIRD_HOST_TOOLS_DIR
+instead. tools/build_native.py builds them for the host first.
+
+Requirement: BLD-004
+
+diff --git a/Libraries/LibJS/CMakeLists.txt b/Libraries/LibJS/CMakeLists.txt
+index 0e11e6d8..7485a496 100644
+--- a/Libraries/LibJS/CMakeLists.txt
++++ b/Libraries/LibJS/CMakeLists.txt
+@@ -1,11 +1,20 @@
+ include(libjs_generators)
+ 
+-build_rust_binary(
+-    MANIFEST_PATH Flap/Cargo.toml
+-    CRATE_NAME flapc
+-    BINARY_NAME generate-libjs-bytecode
+-    OUTPUT_PATH_VAR BYTECODE_GENERATOR_BIN
+-)
++# When cross-compiling, the build-time tools below cannot run on the build machine if they are built for the target.
++# Such builds must provide host builds of them in LADYBIRD_HOST_TOOLS_DIR instead.
++if (CMAKE_CROSSCOMPILING)
++    if (NOT LADYBIRD_HOST_TOOLS_DIR)
++        message(FATAL_ERROR "Cross-compiling LibJS requires LADYBIRD_HOST_TOOLS_DIR to contain host builds of generate-libjs-bytecode, flapc and generate_interpreter_layout")
++    endif()
++    set(BYTECODE_GENERATOR_BIN "${LADYBIRD_HOST_TOOLS_DIR}/generate-libjs-bytecode${CMAKE_HOST_EXECUTABLE_SUFFIX}")
++else()
++    build_rust_binary(
++        MANIFEST_PATH Flap/Cargo.toml
++        CRATE_NAME flapc
++        BINARY_NAME generate-libjs-bytecode
++        OUTPUT_PATH_VAR BYTECODE_GENERATOR_BIN
++    )
++endif()
+ 
+ set(SOURCES
+     Interpreter/SlowPaths.cpp
+@@ -348,35 +357,47 @@ if (DEFINED FLAP_ARCH)
+     set(FLAP_GENERATED_S "${CMAKE_CURRENT_BINARY_DIR}/Interpreter/interpreter_${FLAP_ARCH}.S")
+     set(INTERPRETER_LAYOUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/Interpreter/layout.conf")
+ 
+-    # Build-time offset generator: compiles a small C++ program that uses
+-    # offsetof() to emit struct field offsets as DSL constants.
+-    add_executable(generate_interpreter_layout "${CMAKE_CURRENT_SOURCE_DIR}/Interpreter/GenerateLayout.cpp")
+-    target_link_libraries(generate_interpreter_layout PRIVATE AK)
+-    if (MSVC)
+-        target_compile_definitions(generate_interpreter_layout PRIVATE _ALLOW_KEYWORD_MACROS)
+-    endif()
+-    target_compile_definitions(generate_interpreter_layout PRIVATE private=public protected=public)
+-    # NB: Strip fuzzer sanitizer flags so generate_interpreter_layout can define its own main().
+-    if (ENABLE_FUZZERS_LIBFUZZER)
+-        target_compile_options(generate_interpreter_layout PRIVATE -fno-sanitize=fuzzer)
+-        target_link_options(generate_interpreter_layout PRIVATE -fno-sanitize=fuzzer)
+-    endif()
+-    # NB: GenerateLayout.cpp does not depend on Op.h since opcode field
+-    # offsets are computed from interpreter.flap by flapc directly.
++    if (CMAKE_CROSSCOMPILING)
++        # The host build of the layout generator must be compiled for an ABI with the same data layout as the target.
++        set(INTERPRETER_LAYOUT_GENERATOR "${LADYBIRD_HOST_TOOLS_DIR}/generate_interpreter_layout${CMAKE_HOST_EXECUTABLE_SUFFIX}")
++        add_custom_command(
++            OUTPUT "${INTERPRETER_LAYOUT_FILE}"
++            COMMAND "${INTERPRETER_LAYOUT_GENERATOR}" > "${INTERPRETER_LAYOUT_FILE}"
++            DEPENDS "${INTERPRETER_LAYOUT_GENERATOR}"
++            COMMENT "Generating JS interpreter layout"
++        )
++        set(FLAPC_BIN "${LADYBIRD_HOST_TOOLS_DIR}/flapc${CMAKE_HOST_EXECUTABLE_SUFFIX}")
++    else()
++        # Build-time offset generator: compiles a small C++ program that uses
++        # offsetof() to emit struct field offsets as DSL constants.
++        add_executable(generate_interpreter_layout "${CMAKE_CURRENT_SOURCE_DIR}/Interpreter/GenerateLayout.cpp")
++        target_link_libraries(generate_interpreter_layout PRIVATE AK)
++        if (MSVC)
++            target_compile_definitions(generate_interpreter_layout PRIVATE _ALLOW_KEYWORD_MACROS)
++        endif()
++        target_compile_definitions(generate_interpreter_layout PRIVATE private=public protected=public)
++        # NB: Strip fuzzer sanitizer flags so generate_interpreter_layout can define its own main().
++        if (ENABLE_FUZZERS_LIBFUZZER)
++            target_compile_options(generate_interpreter_layout PRIVATE -fno-sanitize=fuzzer)
++            target_link_options(generate_interpreter_layout PRIVATE -fno-sanitize=fuzzer)
++        endif()
++        # NB: GenerateLayout.cpp does not depend on Op.h since opcode field
++        # offsets are computed from interpreter.flap by flapc directly.
+ 
+-    add_custom_command(
+-        OUTPUT "${INTERPRETER_LAYOUT_FILE}"
+-        COMMAND "$<TARGET_FILE:generate_interpreter_layout>" > "${INTERPRETER_LAYOUT_FILE}"
+-        DEPENDS generate_interpreter_layout
+-        COMMENT "Generating JS interpreter layout"
+-    )
++        add_custom_command(
++            OUTPUT "${INTERPRETER_LAYOUT_FILE}"
++            COMMAND "$<TARGET_FILE:generate_interpreter_layout>" > "${INTERPRETER_LAYOUT_FILE}"
++            DEPENDS generate_interpreter_layout
++            COMMENT "Generating JS interpreter layout"
++        )
+ 
+-    build_rust_binary(
+-        MANIFEST_PATH Flap/Cargo.toml
+-        CRATE_NAME flapc
+-        BINARY_NAME flapc
+-        OUTPUT_PATH_VAR FLAPC_BIN
+-    )
++        build_rust_binary(
++            MANIFEST_PATH Flap/Cargo.toml
++            CRATE_NAME flapc
++            BINARY_NAME flapc
++            OUTPUT_PATH_VAR FLAPC_BIN
++        )
++    endif()
+ 
+     if (WIN32)
+         set(FLAP_OBJECT_FORMAT "coff")

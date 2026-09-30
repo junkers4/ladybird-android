@@ -1,0 +1,151 @@
+# Builds the native part of the app (upstream Ladybird helper processes + our JNI bridge) for Android.
+# Requirements: BLD-001..BLD-006. The staged output is consumed by apk.yml.
+name: Native (Ladybird for Android)
+
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      abi:
+        type: string
+        default: arm64-v8a
+
+concurrency:
+  group: native-${{ github.workflow }}-${{ github.ref }}-${{ inputs.abi || 'arm64-v8a' }}
+  cancel-in-progress: true
+
+env:
+  NDK_VERSION: '29.0.13599879'
+  ZIG_VERSION: '0.16.0'
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 3G
+  LADYBIRD_VCPKG_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-binary-cache
+
+jobs:
+  native:
+    name: Native build (${{ inputs.abi || 'arm64-v8a' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    permissions:
+      contents: read
+    env:
+      ABI: ${{ inputs.abi || 'arm64-v8a' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost \
+            /opt/hostedtoolcache/CodeQL /usr/local/lib/node_modules /usr/share/swift /usr/local/share/powershell
+          docker image prune --all --force > /dev/null 2>&1 || true
+          df -h /
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install host packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            autoconf autoconf-archive automake build-essential ccache curl libtool nasm ninja-build \
+            pkg-config qemu-user-static tar unzip zip
+          python3 -m pip install "ziglang==${ZIG_VERSION}" pyyaml requests six
+
+      - name: Install Rust targets
+        working-directory: ladybird
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          case "${ABI}" in
+            arm64-v8a) rustup target add aarch64-linux-android ;;
+            x86_64) rustup target add x86_64-linux-android ;;
+          esac
+
+      - name: Install Android NDK
+        run: |
+          yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "ndk;${NDK_VERSION}"
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "${GITHUB_ENV}"
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.LADYBIRD_VCPKG_BINARY_CACHE }}
+          key: vcpkg-android-${{ env.ABI }}-${{ hashFiles('ladybird/vcpkg.json', 'ladybird/Meta/CMake/vcpkg/**') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-android-${{ env.ABI }}-${{ hashFiles('ladybird/vcpkg.json', 'ladybird/Meta/CMake/vcpkg/**') }}-
+            vcpkg-android-${{ env.ABI }}-
+
+      - name: Restore compiler cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-android-${{ env.ABI }}-${{ github.run_id }}
+          restore-keys: ccache-android-${{ env.ABI }}-
+
+      - name: Apply patches
+        run: python3 tools/build_native.py patches
+
+      - name: Build host tools
+        run: python3 tools/build_native.py host-tools --abi "${ABI}"
+
+      - name: Bootstrap vcpkg
+        run: python3 tools/build_native.py vcpkg
+
+      - name: Configure (installs vcpkg dependencies for Android)
+        run: python3 tools/build_native.py configure --abi "${ABI}"
+
+      - name: Save vcpkg binary cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.LADYBIRD_VCPKG_BINARY_CACHE }}
+          key: vcpkg-android-${{ env.ABI }}-${{ hashFiles('ladybird/vcpkg.json', 'ladybird/Meta/CMake/vcpkg/**') }}-${{ github.run_id }}
+
+      - name: Build
+        shell: bash
+        run: |
+          ccache -z || true
+          python3 tools/build_native.py build --abi "${ABI}" 2>&1 | tee native-build.log | grep -E "^\[[0-9]+/[0-9]+\]|error|FAILED" | awk 'NR % 50 == 0 || /error|FAILED/'
+          test "${PIPESTATUS[0]}" -eq 0
+          ccache -s || true
+
+      - name: Save compiler cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-android-${{ env.ABI }}-${{ github.run_id }}
+
+      - name: Show build errors
+        if: failure()
+        run: |
+          grep -n -B5 -A30 -E "error:|FAILED:|CMake Error" native-build.log | head -400 || true
+          for log in build/android-*/vcpkg-manifest-install.log; do [ -f "$log" ] && tail -200 "$log"; done || true
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-build-log-${{ env.ABI }}
+          path: |
+            native-build.log
+            build/android-*/vcpkg-manifest-install.log
+            build/android-*/CMakeFiles/CMakeOutput.log
+            build/android-*/CMakeFiles/CMakeError.log
+          if-no-files-found: ignore
+
+      - name: Upload staged native payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-stage-${{ env.ABI }}
+          path: build/native-stage
+          if-no-files-found: error

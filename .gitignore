@@ -1,0 +1,24 @@
+# Build outputs
+/build/
+.ccache/
+.vcpkg-binary-cache/
+
+# Gradle / Android Studio
+.gradle/
+**/build/
+.cxx/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editors / OS
+.vscode/
+.DS_Store
+*.swp
