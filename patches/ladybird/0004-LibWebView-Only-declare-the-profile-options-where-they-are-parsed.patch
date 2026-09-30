@@ -1,0 +1,25 @@
+LibWebView: Only declare the profile options where they are parsed
+
+The --force-new-process/--profile/--profile-path/--temporary-profile options
+are not offered on Android, so their variables were unused there and the
+build failed with -Werror,-Wunused-variable.
+
+Requirement: ARCH-001
+
+diff --git a/Libraries/LibWebView/Application.cpp b/Libraries/LibWebView/Application.cpp
+index af4871f2..80771f19 100644
+--- a/Libraries/LibWebView/Application.cpp
++++ b/Libraries/LibWebView/Application.cpp
+@@ -299,10 +299,12 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
+     Optional<u32> screenshot_delay;
+     Optional<StringView> screenshot_path;
+     bool new_window = false;
++#if !defined(AK_OS_ANDROID)
+     bool force_new_process = false;
+     Optional<StringView> profile_name;
+     Optional<StringView> profile_path;
+     bool temporary_profile = false;
++#endif
+     bool allow_popups = false;
+     bool disable_scripting = false;
+     bool disable_sql_database = false;
