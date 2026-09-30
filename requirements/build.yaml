@@ -1,0 +1,72 @@
+- id: BLD-001
+  title: APK is built by CI from a clean checkout
+  description: >-
+    CI builds the native payload and a debug APK from a fresh clone (with the submodule) and publishes the APK as a
+    workflow artifact.
+  priority: must
+  status: implemented
+  verification: ci
+
+- id: BLD-002
+  title: Upstream is extended, not edited
+  description: >-
+    Our native code is added to upstream's CMake project through CMAKE_PROJECT_ladybird_INCLUDE; no file inside the
+    ladybird/ submodule is edited except through patches/ladybird.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: BLD-003
+  title: Patches apply idempotently
+  description: >-
+    tools/build_native.py applies each patch in patches/ladybird exactly once, skips already applied patches and
+    fails with a clear message when a patch no longer applies to the submodule.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: BLD-004
+  title: Cross-compilation host tools
+  description: >-
+    Build-time tools that LibJS runs (flapc, generate-libjs-bytecode, generate_interpreter_layout) are built for the
+    build machine; the layout generator is compiled for the target CPU architecture (run under qemu when foreign)
+    because struct layouts differ between architectures.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: BLD-005
+  title: Pinned dependencies
+  description: >-
+    vcpkg is bootstrapped at the revision pinned by upstream's vcpkg.json, the NDK version is pinned in one place per
+    build system, and AK's host dependencies are pinned to upstream's vcpkg overrides.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: BLD-006
+  title: Native payload staging
+  description: >-
+    The native build stages libladybird_android.so, every helper executable as lib<Name>.so, the shared service
+    libraries, libc++_shared.so and Ladybird's resources; the APK build refuses an incomplete stage.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: BLD-007
+  title: Fast build without the engine
+  description: >-
+    The Gradle project builds, lints and runs all JVM tests without the native payload (-Pladybird.skipNative=true),
+    so UI and logic changes get feedback in minutes.
+  priority: should
+  status: implemented
+  verification: ci
+
+- id: BLD-008
+  title: Release builds are minified and use hardened packaging
+  description: >-
+    Release builds enable R8 minification and resource shrinking, keep only the JNI entry points by name, and package
+    native libraries uncompressed-extracted (required to execute helper binaries).
+  priority: should
+  status: implemented
+  verification: unit

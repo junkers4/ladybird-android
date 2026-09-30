@@ -1,0 +1,75 @@
+- id: ARCH-001
+  title: Upstream engine, desktop process model
+  description: >-
+    The browser engine is the unmodified upstream Ladybird (git submodule) plus the patches in patches/ladybird.
+    LibWebView's browser process runs inside the app process; every helper process (WebContent, RequestServer,
+    ImageDecoder, Compositor, WebWorker, MediaServer) runs as a separate executable, exactly like the Linux port,
+    so each tab's renderer is isolated in its own OS process.
+  rationale: Stays close to upstream (easy updates) and keeps Ladybird's multi-process isolation.
+  priority: must
+  status: implemented
+  verification: static
+
+- id: ARCH-002
+  title: Engine runs on its own thread
+  description: >-
+    LibWebView's event loop runs on a dedicated native thread. JNI calls from the Android UI thread only post work
+    to that thread and never wait for it, except surface detachment which must finish before surfaceDestroyed()
+    returns.
+  priority: must
+  status: implemented
+  verification: static
+
+- id: ARCH-003
+  title: Frames are presented into an ANativeWindow
+  description: >-
+    Each tab renders into its own SurfaceView. The native bridge copies the most recent Ladybird frame into the
+    surface's ANativeWindow (BGRA to RGBA), filling the rest of the surface with the page background.
+  priority: must
+  status: implemented
+  verification: static
+
+- id: ARCH-004
+  title: JNI protocol contract
+  description: >-
+    Event and input constants shared by native/src/BridgeProtocol.h and the Kotlin BridgeProtocol must match
+    exactly; the Kotlin names of the JNI entry points must match the native registration table.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: ARCH-005
+  title: Key codes follow upstream
+  description: >-
+    Android key codes are translated to Ladybird's Compositing::KeyCode values. The Kotlin table must agree with
+    ladybird/Libraries/LibCompositing/KeyCode.h so hardware keyboards work.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: ARCH-006
+  title: Platform-independent logic lives in :core
+  description: >-
+    URL handling, privacy/security policies, blocking rules, tab model, gesture math and the JSON used to talk to
+    the engine are pure Kotlin (no Android dependencies) in android/core, so they are unit tested on the JVM.
+  priority: should
+  status: implemented
+  verification: unit
+
+- id: ARCH-007
+  title: Engine events are decoded safely
+  description: >-
+    JSON coming from the engine (menus, select dropdowns, downloads, new-tab requests) is parsed by a strict parser;
+    malformed input is rejected without crashing the UI.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: ARCH-008
+  title: Resources are installed once per app version
+  description: >-
+    Ladybird's runtime resources are extracted from the APK into app-private storage on first start and whenever
+    the app version changes, never on every start.
+  priority: should
+  status: implemented
+  verification: unit

@@ -1,0 +1,142 @@
+# User interface. The layout follows Ladybird's Qt browser window, adapted to phones:
+# [back] [forward] [reload/stop] [location edit] [tabs] [menu], with Ladybird's own menus in the overflow menu.
+
+- id: UI-001
+  title: Ladybird-style toolbar
+  description: >-
+    The toolbar shows back, forward, reload (stop while loading), the location field with a security indicator,
+    the tab count and the overflow menu, like Ladybird's Qt toolbar. Back/forward reflect the engine's navigation
+    state.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: UI-002
+  title: Tabs
+  description: >-
+    Users can open, close, switch and reopen closed tabs; a tab switcher lists all tabs with title and URL.
+    Links opened in a new tab by the page (window.open, target=_blank, context menu) become tabs next to their
+    opener. Private tabs are listed separately.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: UI-003
+  title: Omnibox
+  description: >-
+    The location field accepts URLs, host names, IP addresses and search terms; search terms go to the selected
+    search engine (DuckDuckGo by default, choice of engines). Input is trimmed, schemes are added when missing and
+    dangerous schemes (javascript:, data:, file:) typed by the user are refused.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: UI-004
+  title: Progress and security indicator
+  description: >-
+    A progress bar shows loading; the location field shows a lock for https, a warning for http and a neutral icon
+    for internal pages.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: UI-005
+  title: Ladybird menus
+  description: >-
+    The overflow menu exposes Ladybird's own application menus (Zoom, Color Scheme, Contrast, Motion, Bookmarks,
+    History, Inspect, Debug) rendered natively from the engine's menu model, plus Settings, Downloads and About.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: UI-006
+  title: Context menus
+  description: Long-press shows the engine's context menu (page, link, image, media, selection) as a native menu.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: UI-007
+  title: Web dialogs
+  description: >-
+    alert/confirm/prompt dialogs, <select> dropdowns (with groups and disabled options) and file pickers are shown
+    natively and their results returned to the page.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: UI-008
+  title: Find in page
+  description: Find bar with next/previous and a "current/total" match counter.
+  priority: should
+  status: implemented
+  verification: unit
+
+- id: UI-009
+  title: Dark mode
+  description: The app and web content follow the system dark mode (prefers-color-scheme and Ladybird's dark theme).
+  priority: should
+  status: implemented
+  verification: unit
+
+- id: UI-010
+  title: Touch input
+  description: >-
+    Tap sends a click, long-press a context-menu click, drag scrolls with precise wheel deltas and flings continue
+    with momentum; pinch zooms the page.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: UI-011
+  title: Keyboard and IME
+  description: >-
+    The soft keyboard opens when a web text field is focused; composing text, commits and deletions from the IME
+    and hardware keys reach the page.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: UI-012
+  title: Localization
+  description: The UI is available in English and Slovak; every string exists in both languages.
+  priority: should
+  status: implemented
+  verification: unit
+
+- id: UI-013
+  title: Settings
+  description: >-
+    An Android settings screen holds the app's privacy/security options and links to Ladybird's own about:settings
+    for engine settings (search, languages, content blocking lists, DNS, autoplay).
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: UI-014
+  title: Downloads land in Downloads
+  description: Finished downloads are copied to the shared Downloads collection and announced with a notification.
+  priority: should
+  status: implemented
+  verification: unit
+
+- id: UI-015
+  title: Fullscreen
+  description: Element fullscreen (e.g. video) hides the system bars and the toolbar; back leaves fullscreen.
+  priority: should
+  status: implemented
+  verification: unit
+
+- id: UI-016
+  title: Shields panel
+  description: A shields button in the location field opens a panel to toggle blocking for the current site.
+  priority: should
+  status: implemented
+  verification: unit
+
+- id: UI-017
+  title: Open links from other apps
+  description: The app handles VIEW intents for http/https URLs and web searches from other apps.
+  priority: must
+  status: implemented
+  verification: unit

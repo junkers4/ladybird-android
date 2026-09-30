@@ -1,0 +1,65 @@
+# Ad and tracker blocking ("shields"). Blocking itself is done inside the engine by Ladybird's content
+# blocker, which uses Brave's adblock-rust library (the same engine as Brave's shields).
+
+- id: ADB-001
+  title: Content blocking on by default
+  description: >-
+    The engine's content blocker is enabled with EasyList, EasyPrivacy, EasyList Cookie List, Fanboy's Annoyance
+    List and the Adblock Warning Removal List turned on by default, plus the regional list matching the device
+    language when Ladybird ships one.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: ADB-002
+  title: Per-site shields toggle
+  description: >-
+    The user can turn blocking off for a site. Exceptions are expressed as filter rules (document-level
+    exception plus cosmetic exception for that host) appended to the engine's custom filters.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: ADB-003
+  title: YouTube ad blocking
+  description: >-
+    Built-in rules block YouTube's ad and ad-tracking endpoints and hide ad slots (network + cosmetic filtering).
+    A player-response scriptlet that removes adPlacements/playerAds is shipped and unit tested; injecting it at
+    document start needs an engine patch (see ADB-006).
+  priority: must
+  status: partial
+  verification: unit
+
+- id: ADB-004
+  title: Custom filters
+  description: >-
+    Users can add their own filters in Adblock Plus/uBlock Origin syntax. Invalid lines are reported with a reason
+    and are not sent to the engine.
+  priority: should
+  status: implemented
+  verification: unit
+
+- id: ADB-005
+  title: Filter list updates
+  description: >-
+    Filter lists are updated automatically by the engine (daily) unless the user disables background networking;
+    a manual "update now" is available from Ladybird's settings page.
+  priority: should
+  status: implemented
+  verification: unit
+
+- id: ADB-006
+  title: Document-start scriptlets
+  description: >-
+    Patch the engine so the app can register scripts (per host) that run before any page script, and use it for the
+    YouTube scriptlet and anti-adblock-wall neutralisers.
+  priority: should
+  status: planned
+  verification: instrumented
+
+- id: ADB-007
+  title: Blocked request counter
+  description: Show the number of blocked requests for the current page in the shields panel.
+  priority: could
+  status: planned
+  verification: instrumented

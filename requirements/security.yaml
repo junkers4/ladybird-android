@@ -1,0 +1,185 @@
+# Security and privacy. The baseline we measure against is GrapheneOS' Vanadium; items marked "beyond Vanadium"
+# are things Vanadium does not do by default.
+
+- id: SEC-001
+  title: No telemetry or proprietary services
+  description: >-
+    The app contains no analytics, crash reporting, advertising or Google Play Services/Firebase dependencies and
+    makes no network requests of its own except those the engine performs for browsing and filter-list updates.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-002
+  title: Minimal Android permissions
+  description: >-
+    The app requests only INTERNET, ACCESS_NETWORK_STATE and POST_NOTIFICATIONS (download notifications). No storage,
+    location, camera, microphone, contacts or phone permissions.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-003
+  title: No JIT compilers (beyond Vanadium)
+  description: >-
+    The Android engine is built without the WebAssembly JIT (Cranelift). LibJS is an interpreter. No code is ever
+    generated at runtime, which removes a whole class of exploits (Vanadium only disables its JIT per default setting).
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-004
+  title: HTTPS-Only mode on by default (beyond Vanadium)
+  description: >-
+    Navigations to http:// URLs are upgraded to https://. Plain HTTP is only used for a host the user explicitly
+    allowed after a warning, for the current session or permanently. Loopback hosts are exempt.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-005
+  title: Tracking parameters are stripped
+  description: >-
+    Known tracking query parameters (utm_*, fbclid, gclid, msclkid, mc_eid, igshid, YouTube "si", ...) are removed
+    from URLs the user navigates to or shares; other parameters and the fragment are kept in order.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-006
+  title: Global Privacy Control on by default
+  description: The engine sends Sec-GPC / navigator.globalPrivacyControl by default; users can turn it off.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-007
+  title: Encrypted DNS by default (beyond Vanadium)
+  description: >-
+    The engine resolves names with DNS-over-TLS (Quad9 by default, choice of providers or system DNS) using
+    Ladybird's own resolver; the choice is applied through the engine policy.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-008
+  title: External apps only after confirmation
+  description: >-
+    Non-web schemes (intent:, market:, tel:, sms:, mailto:, geo:, ...) never open another app without an explicit
+    confirmation. intent: URIs are sanitized: explicit components, selectors and grant flags are dropped, and
+    javascript:/file:/content: fallbacks are rejected.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-009
+  title: Only system trust anchors
+  description: >-
+    The engine's TLS trust store is built only from the system CA store; user-installed CAs are ignored (like
+    Chrome/Vanadium for apps targeting API 24+).
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-010
+  title: No backups of browsing data
+  description: >-
+    allowBackup is false and the data extraction rules exclude everything from cloud backup and device transfer.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-011
+  title: No exported entry points besides the browser
+  description: >-
+    Only the main activity is exported (launcher, VIEW http/https, WEB_SEARCH). Everything else is not exported.
+    Cleartext traffic is disabled for the app's own networking.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-012
+  title: Hardened native binaries
+  description: >-
+    Every staged native library/executable has full RELRO, BIND_NOW, a non-executable stack and no text
+    relocations. CI checks the staged payload.
+  priority: must
+  status: implemented
+  verification: ci
+
+- id: SEC-013
+  title: Private tabs
+  description: >-
+    Private tabs use an ephemeral Ladybird browsing session (no history, cookies or storage persisted), are shown in
+    a distinct color, cannot be captured in screenshots or the recents thumbnail (FLAG_SECURE), and use an
+    incognito keyboard.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-014
+  title: Incognito keyboard everywhere (beyond Vanadium)
+  description: >-
+    The address bar and web text fields request IME_FLAG_NO_PERSONALIZED_LEARNING in private tabs, and in all tabs
+    when the "incognito keyboard" setting is on (default on).
+  priority: should
+  status: implemented
+  verification: unit
+
+- id: SEC-015
+  title: Clear browsing data on exit
+  description: >-
+    An optional setting clears history, cookies, site data and cache when the user quits the app from the menu.
+  priority: should
+  status: partial
+  verification: unit
+
+- id: SEC-016
+  title: Default-deny site permissions
+  description: >-
+    Geolocation is off, autoplay with sound is blocked and pop-ups are blocked by default. JavaScript can be disabled
+    per site.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: SEC-017
+  title: Screenshot protection option
+  description: A setting applies FLAG_SECURE to all tabs, not just private ones.
+  priority: could
+  status: implemented
+  verification: unit
+
+- id: SEC-018
+  title: Safe downloads
+  description: >-
+    Download file names are sanitized (no path separators, control characters or leading dots) and executable
+    Android packages (.apk, .apks, .xapk) and scripts are flagged as dangerous and require confirmation.
+  priority: should
+  status: implemented
+  verification: unit
+
+- id: SEC-019
+  title: Site isolation stays enabled
+  description: >-
+    The Android bridge keeps LibWebView's default site isolation (a WebContent process per site) and never disables
+    it.
+  priority: must
+  status: implemented
+  verification: static
+
+- id: SEC-020
+  title: Renderer sandbox on Android (beyond Vanadium)
+  description: >-
+    Apply Ladybird's seccomp-bpf renderer policy (and Landlock where the kernel supports it) to WebContent,
+    ImageDecoder and WebWorker on Android via a patch enabling RendererSandboxLinux.cpp for Android.
+  priority: should
+  status: planned
+  verification: instrumented
+
+- id: SEC-021
+  title: Lock private tabs behind device authentication
+  description: Optionally require the device credential/biometric before showing private tabs after the app was backgrounded.
+  priority: could
+  status: planned
+  verification: instrumented

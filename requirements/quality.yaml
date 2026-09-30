@@ -1,0 +1,26 @@
+- id: QA-001
+  title: Requirements traceability is enforced
+  description: >-
+    CI fails when an implemented or partial requirement has no test, when a test references an unknown requirement
+    ID, or when a requirement entry is malformed or duplicated.
+  priority: must
+  status: implemented
+  verification: unit
+
+- id: QA-002
+  title: All JVM tests run on every push
+  description: >-
+    CI runs the :core unit tests, the :app JVM/Robolectric tests, Android lint and the Python tool tests on every
+    push and pull request.
+  priority: must
+  status: implemented
+  verification: ci
+
+- id: QA-003
+  title: Emulator smoke test
+  description: >-
+    CI boots an x86_64 emulator, installs the APK, loads a local test page and checks that it rendered (non-blank
+    frame) and that the title arrived in the toolbar.
+  priority: should
+  status: planned
+  verification: instrumented
