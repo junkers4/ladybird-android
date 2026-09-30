@@ -140,6 +140,16 @@ class PinnedVersionsTests(unittest.TestCase):
         self.assertEqual(parser_default, workflow)
 
 
+    def test_cargo_uses_upstreams_pinned_rust_toolchain(self):
+        # Cargo runs from the build directory, where rustup cannot see ladybird/rust-toolchain.toml.
+        channel = build_native.rust_toolchain_channel()
+        self.assertRegex(channel or "", r"^\d+\.\d+")
+        with mock.patch.dict(build_native.os.environ, {}, clear=True):
+            self.assertEqual(build_native.build_environment()["RUSTUP_TOOLCHAIN"], channel)
+        with mock.patch.dict(build_native.os.environ, {"RUSTUP_TOOLCHAIN": "nightly"}, clear=True):
+            self.assertEqual(build_native.build_environment()["RUSTUP_TOOLCHAIN"], "nightly")
+
+
 class StageTests(unittest.TestCase):
     """BLD-006."""
 

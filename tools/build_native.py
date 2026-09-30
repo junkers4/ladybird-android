@@ -61,6 +61,27 @@ def run(arguments: list, cwd: Path | None = None, env: dict | None = None) -> No
     subprocess.run([str(argument) for argument in arguments], cwd=cwd, env=env, check=True)
 
 
+def rust_toolchain_channel() -> str | None:
+    """The Rust channel upstream pins in rust-toolchain.toml.
+
+    Cargo runs from the build directory, outside ladybird/, where rustup would not see that file and would fall back
+    to the default toolchain (which lacks the Android std), so the channel is passed via RUSTUP_TOOLCHAIN instead.
+    """
+    toolchain_file = LADYBIRD_DIR / "rust-toolchain.toml"
+    if not toolchain_file.exists():
+        return None
+    match = re.search(r'^channel\s*=\s*"([^"]+)"', toolchain_file.read_text(), re.MULTILINE)
+    return match.group(1) if match else None
+
+
+def build_environment() -> dict:
+    env = dict(os.environ)
+    channel = rust_toolchain_channel()
+    if channel and "RUSTUP_TOOLCHAIN" not in env:
+        env["RUSTUP_TOOLCHAIN"] = channel
+    return env
+
+
 def git_apply(patch: Path, *extra: str) -> bool:
     result = subprocess.run(
         ["git", "-C", str(LADYBIRD_DIR), "apply", *extra, str(patch)],
@@ -286,7 +307,7 @@ def configure(arguments: argparse.Namespace) -> None:
     ndk = find_ndk(arguments)
     vcpkg_root = Path(arguments.vcpkg_root)
 
-    env = dict(os.environ)
+    env = build_environment()
     env["VCPKG_ROOT"] = str(vcpkg_root)
     env["ANDROID_NDK_HOME"] = str(ndk)
     if arguments.vcpkg_binary_cache:
@@ -299,7 +320,7 @@ def configure(arguments: argparse.Namespace) -> None:
 def build(arguments: argparse.Namespace) -> None:
     build_dir = native_build_dir(arguments)
     jobs = ["-j", str(arguments.jobs)] if arguments.jobs else []
-    run(["cmake", "--build", build_dir, "--target", "ladybird_android_stage", *jobs])
+    run(["cmake", "--build", build_dir, "--target", "ladybird_android_stage", *jobs], env=build_environment())
     stage = Path(arguments.stage_dir) / "jniLibs" / arguments.abi
     staged = sorted(path.name for path in stage.glob("*.so"))
     log(f"staged {len(staged)} libraries in {stage}: {', '.join(staged)}")
