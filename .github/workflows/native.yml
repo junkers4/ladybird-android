@@ -1,6 +1,7 @@
-# Builds the native part of the app (upstream Ladybird helper processes + our JNI bridge) for Android.
-# Requirements: BLD-001..BLD-006. The staged output is consumed by apk.yml.
-name: Native (Ladybird for Android)
+# Builds the native part of the app (upstream Ladybird helper processes + our JNI bridge) for Android,
+# checks it and packages the APKs.
+# Verifies: BLD-001, SEC-012
+name: Native + APK
 
 on:
   push:
@@ -143,9 +144,36 @@ jobs:
             build/android-*/CMakeFiles/CMakeError.log
           if-no-files-found: ignore
 
+      - name: Verify native stage
+        run: python3 tools/build_native.py verify-stage --abi "${ABI}"
+
+      - name: Check ELF hardening of the staged payload
+        run: python3 tools/check_elf_hardening.py "build/native-stage/jniLibs/${ABI}"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APKs
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug assembleRelease -Pladybird.abis="${ABI}" -Pladybird.nativeStage="${GITHUB_WORKSPACE}/build/native-stage"
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ladybird-android-apk-${{ env.ABI }}
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
       - name: Upload staged native payload
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: native-stage-${{ env.ABI }}
           path: build/native-stage
-          if-no-files-found: error
+          if-no-files-found: ignore

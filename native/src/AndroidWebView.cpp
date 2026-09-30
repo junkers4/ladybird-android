@@ -8,6 +8,7 @@
 #include "AndroidApplication.h"
 #include "BridgeProtocol.h"
 #include "JNIBridge.h"
+#include "PixelConversion.h"
 #include "SerializeMenu.h"
 #include <AK/Array.h>
 #include <AK/Base64.h>
@@ -269,22 +270,8 @@ void AndroidWebView::present()
 
         for (int y = 0; y < destination_height; ++y) {
             auto* destination_row = destination + static_cast<size_t>(y) * buffer.stride;
-            int x = 0;
-            if (y < copy_height) {
-                auto const* source_row = bitmap->scanline(y);
-                if (swizzle) {
-                    for (; x < copy_width; ++x) {
-                        auto pixel = source_row[x];
-                        // ARGB (0xAARRGGBB, BGRA in memory) -> ABGR (RGBA in memory), forced opaque.
-                        destination_row[x] = 0xFF000000 | ((pixel & 0x00FF0000) >> 16) | (pixel & 0x0000FF00) | ((pixel & 0x000000FF) << 16);
-                    }
-                } else {
-                    __builtin_memcpy(destination_row, source_row, static_cast<size_t>(copy_width) * sizeof(u32));
-                    x = copy_width;
-                }
-            }
-            for (; x < destination_width; ++x)
-                destination_row[x] = background;
+            auto const* source_row = y < copy_height ? bitmap->scanline(y) : nullptr;
+            convert_row(destination_row, destination_width, source_row, copy_width, swizzle, background);
         }
 
         ANativeWindow_unlockAndPost(&window);

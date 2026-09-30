@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="theme_values" translatable="false"><item>system</item><item>light</item><item>dark</item></string-array>
+    <string-array name="dns_values" translatable="false"><item>quad9</item><item>cloudflare</item><item>mullvad</item><item>system</item></string-array>
+    <string-array name="autoplay_values" translatable="false"><item>block_audio</item><item>block_all</item><item>allow</item></string-array>
+</resources>

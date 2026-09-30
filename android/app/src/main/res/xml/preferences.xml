@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="@string/settings_general">
+        <ListPreference
+            app:key="search_engine"
+            app:title="@string/setting_search_engine"
+            app:useSimpleSummaryProvider="true" />
+        <ListPreference
+            app:key="theme"
+            app:defaultValue="system"
+            app:entries="@array/theme_entries"
+            app:entryValues="@array/theme_values"
+            app:title="@string/setting_theme"
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/settings_security">
+        <SwitchPreferenceCompat app:key="https_only" app:defaultValue="true" app:title="@string/setting_https_only" app:summary="@string/setting_https_only_summary" />
+        <ListPreference
+            app:key="dns"
+            app:defaultValue="quad9"
+            app:entries="@array/dns_entries"
+            app:entryValues="@array/dns_values"
+            app:title="@string/setting_dns"
+            app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat app:key="confirm_external_apps" app:defaultValue="true" app:enabled="false" app:title="@string/setting_confirm_external" app:summary="@string/setting_confirm_external_summary" />
+        <SwitchPreferenceCompat app:key="screenshot_protection" app:defaultValue="false" app:title="@string/setting_screenshot_protection" app:summary="@string/setting_screenshot_protection_summary" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/settings_privacy">
+        <SwitchPreferenceCompat app:key="global_privacy_control" app:defaultValue="true" app:title="@string/setting_gpc" app:summary="@string/setting_gpc_summary" />
+        <SwitchPreferenceCompat app:key="strip_tracking_parameters" app:defaultValue="true" app:title="@string/setting_strip_tracking" app:summary="@string/setting_strip_tracking_summary" />
+        <SwitchPreferenceCompat app:key="incognito_keyboard" app:defaultValue="true" app:title="@string/setting_incognito_keyboard" app:summary="@string/setting_incognito_keyboard_summary" />
+        <SwitchPreferenceCompat app:key="geolocation" app:defaultValue="false" app:title="@string/setting_geolocation" />
+        <ListPreference
+            app:key="autoplay"
+            app:defaultValue="block_audio"
+            app:entries="@array/autoplay_entries"
+            app:entryValues="@array/autoplay_values"
+            app:title="@string/setting_autoplay"
+            app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat app:key="clear_data_on_exit" app:defaultValue="false" app:title="@string/setting_clear_on_exit" app:summary="@string/setting_clear_on_exit_summary" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/settings_shields">
+        <SwitchPreferenceCompat app:key="content_blocking" app:defaultValue="true" app:title="@string/setting_content_blocking" app:summary="@string/setting_content_blocking_summary" />
+        <SwitchPreferenceCompat app:key="annoyance_blocking" app:defaultValue="true" app:dependency="content_blocking" app:title="@string/setting_annoyances" app:summary="@string/setting_annoyances_summary" />
+        <SwitchPreferenceCompat app:key="youtube_ad_blocking" app:defaultValue="true" app:dependency="content_blocking" app:title="@string/setting_youtube" app:summary="@string/setting_youtube_summary" />
+        <SwitchPreferenceCompat app:key="filter_list_updates" app:defaultValue="true" app:title="@string/setting_filter_updates" app:summary="@string/setting_filter_updates_summary" />
+        <EditTextPreference app:key="custom_filters" app:dependency="content_blocking" app:title="@string/setting_custom_filters" app:summary="@string/setting_custom_filters_summary" />
+    </PreferenceCategory>
+</PreferenceScreen>

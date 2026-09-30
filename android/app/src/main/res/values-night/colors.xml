@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="toolbar">#1F1D22</color>
+    <color name="location_background">#2E2B33</color>
+    <color name="private_toolbar">#3B2C57</color>
+</resources>

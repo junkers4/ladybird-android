@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ladybird_red">#E53935</color>
+    <color name="toolbar">#F3F1F4</color>
+    <color name="location_background">#FFFFFF</color>
+    <color name="private_toolbar">#4A3C66</color>
+    <color name="shields">#FB542B</color>
+    <color name="launcher_background">#1F1B24</color>
+</resources>

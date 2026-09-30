@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="engine_starting">Spúšťa sa Ladybird…</string>
+    <string name="engine_unavailable">Táto zostava neobsahuje engine Ladybird. Zostavte natívnu časť pomocou tools/build_native.py.</string>
+    <string name="engine_failed">Engine Ladybird sa nepodarilo spustiť: %1$s</string>
+    <string name="page_crashed">Stránka spadla. Skúste ju znova načítať.</string>
+    <string name="dangerous_scheme">Takúto adresu nie je možné otvoriť z panela s adresou.</string>
+    <string name="back">Späť</string>
+    <string name="forward">Dopredu</string>
+    <string name="reload">Obnoviť</string>
+    <string name="stop">Zastaviť</string>
+    <string name="location_hint">Hľadajte alebo zadajte adresu</string>
+    <string name="shields">Štíty</string>
+    <string name="tabs">Karty</string>
+    <string name="menu">Ponuka</string>
+    <string name="find_in_page">Hľadať na stránke</string>
+    <string name="find_previous">Predchádzajúca zhoda</string>
+    <string name="find_next">Ďalšia zhoda</string>
+    <string name="close">Zavrieť</string>
+    <string name="new_tab">Nová karta</string>
+    <string name="new_private_tab">Nová súkromná karta</string>
+    <string name="reopen_closed_tab">Znovu otvoriť zatvorenú kartu</string>
+    <string name="close_private_tabs">Zavrieť súkromné karty</string>
+    <string name="close_current_tab">Zavrieť kartu</string>
+    <string name="share">Zdieľať</string>
+    <string name="bookmarks">Záložky</string>
+    <string name="history">História</string>
+    <string name="downloads">Stiahnuté súbory</string>
+    <string name="view_menu">Zobraziť</string>
+    <string name="menu_zoom">Lupa</string>
+    <string name="menu_color_scheme">Farebná schéma</string>
+    <string name="menu_contrast">Kontrast</string>
+    <string name="menu_motion">Pohyb</string>
+    <string name="developer_menu">Vývojár</string>
+    <string name="view_source">Zobraziť zdrojový kód</string>
+    <string name="menu_inspect">Preskúmať</string>
+    <string name="menu_debug">Ladenie</string>
+    <string name="settings">Nastavenia</string>
+    <string name="ladybird_settings">Nastavenia Ladybird</string>
+    <string name="about">O prehliadači Ladybird</string>
+    <string name="quit">Ukončiť</string>
+    <string name="private_marker">[Súkromná]</string>
+    <string name="tabs_title">Karty (%1$d)</string>
+    <string name="shields_up_for">Reklamy a sledovače sú na %1$s blokované.</string>
+    <string name="shields_down_for">Blokovanie je pre %1$s vypnuté.</string>
+    <string name="shields_globally_off">Blokovanie obsahu je vypnuté v Nastaveniach.</string>
+    <string name="shields_turn_off">Vypnúť pre túto stránku</string>
+    <string name="shields_turn_on">Zapnúť pre túto stránku</string>
+    <string name="external_title">Otvoriť v inej aplikácii?</string>
+    <string name="external_message">Táto stránka chce otvoriť: %1$s</string>
+    <string name="external_fallback">Táto stránka chce prejsť na %1$s</string>
+    <string name="external_blocked">Zablokované: %1$s</string>
+    <string name="external_no_app">Tento odkaz nevie otvoriť žiadna aplikácia.</string>
+    <string name="open">Otvoriť</string>
+    <string name="dangerous_download_title">Potenciálne nebezpečný súbor</string>
+    <string name="dangerous_download_message">%1$s môže inštalovať aplikácie alebo spúšťať kód. Ponechajte ho, len ak dôverujete jeho pôvodu.</string>
+    <string name="keep">Ponechať</string>
+    <string name="discard">Zahodiť</string>
+    <string name="download_finished">Stiahnuté: %1$s</string>
+    <string name="download_failed">Súbor %1$s sa nepodarilo uložiť</string>
+    <string name="custom_filters_problems">Niektoré filtre boli ignorované</string>
+    <string name="custom_filters_problem_line">Riadok %1$d: %2$s</string>
+    <string name="settings_general">Všeobecné</string>
+    <string name="setting_search_engine">Vyhľadávač</string>
+    <string name="setting_theme">Motív</string>
+    <string name="settings_security">Zabezpečenie</string>
+    <string name="setting_https_only">Režim iba HTTPS</string>
+    <string name="setting_https_only_summary">Každé pripojenie povýšiť na HTTPS</string>
+    <string name="setting_dns">Zabezpečené DNS</string>
+    <string name="setting_confirm_external">Potvrdiť pred otvorením iných aplikácií</string>
+    <string name="setting_confirm_external_summary">Vždy zapnuté: odkazy nikdy neotvárajú iné aplikácie potichu</string>
+    <string name="setting_screenshot_protection">Ochrana pred snímkami obrazovky</string>
+    <string name="setting_screenshot_protection_summary">Blokovať snímky obrazovky a náhľady vo všetkých kartách (v súkromných vždy)</string>
+    <string name="settings_privacy">Súkromie</string>
+    <string name="setting_gpc">Global Privacy Control</string>
+    <string name="setting_gpc_summary">Oznámiť webom, aby nepredávali ani nezdieľali vaše údaje</string>
+    <string name="setting_strip_tracking">Odstraňovať sledovacie parametre</string>
+    <string name="setting_strip_tracking_summary">Odstrániť utm_*, fbclid, gclid a podobné z odkazov</string>
+    <string name="setting_incognito_keyboard">Inkognito klávesnica</string>
+    <string name="setting_incognito_keyboard_summary">Požiadať klávesnicu, aby sa neučila, čo píšete</string>
+    <string name="setting_geolocation">Povoliť stránkam žiadať o polohu</string>
+    <string name="setting_autoplay">Automatické prehrávanie</string>
+    <string name="setting_clear_on_exit">Vymazať údaje prehliadania pri ukončení</string>
+    <string name="setting_clear_on_exit_summary">História, cookies, údaje stránok a vyrovnávacia pamäť sa vymažú pri Ukončiť</string>
+    <string name="settings_shields">Štíty</string>
+    <string name="setting_content_blocking">Blokovať reklamy a sledovače</string>
+    <string name="setting_content_blocking_summary">EasyList, EasyPrivacy a regionálne zoznamy (blokovací engine Brave)</string>
+    <string name="setting_annoyances">Blokovať cookie lišty a otravné prvky</string>
+    <string name="setting_annoyances_summary">Oznámenia o cookies, vyskakovacie okná, newslettre, sociálne widgety</string>
+    <string name="setting_youtube">Blokovať reklamy na YouTube</string>
+    <string name="setting_youtube_summary">Vstavané pravidlá pre reklamné adresy a sloty YouTube</string>
+    <string name="setting_filter_updates">Automaticky aktualizovať zoznamy filtrov</string>
+    <string name="setting_filter_updates_summary">Sťahovať aktualizácie zoznamov raz denne</string>
+    <string name="setting_custom_filters">Vlastné filtre</string>
+    <string name="setting_custom_filters_summary">Syntax Adblock Plus / uBlock Origin</string>
+    <string-array name="theme_entries">
+        <item>Podľa systému</item>
+        <item>Svetlý</item>
+        <item>Tmavý</item>
+    </string-array>
+    <string-array name="dns_entries">
+        <item>Quad9 (DNS-over-TLS)</item>
+        <item>Cloudflare (DNS-over-TLS)</item>
+        <item>Mullvad (DNS-over-TLS)</item>
+        <item>Systémové DNS</item>
+    </string-array>
+    <string-array name="autoplay_entries">
+        <item>Blokovať zvuk</item>
+        <item>Blokovať zvuk aj video</item>
+        <item>Povoliť</item>
+    </string-array>
+</resources>

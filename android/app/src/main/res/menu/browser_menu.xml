@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mirrors the menus of Ladybird's Qt window (File/View/Inspect/Debug) on a phone (UI-005). -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/new_tab" android:title="@string/new_tab" />
+    <item android:id="@+id/new_private_tab" android:title="@string/new_private_tab" />
+    <item android:id="@+id/reopen_closed_tab" android:title="@string/reopen_closed_tab" />
+    <item android:id="@+id/close_private_tabs" android:title="@string/close_private_tabs" />
+    <item android:id="@+id/find_in_page" android:title="@string/find_in_page" />
+    <item android:id="@+id/share" android:title="@string/share" />
+    <item android:id="@+id/bookmarks" android:title="@string/bookmarks" />
+    <item android:id="@+id/history" android:title="@string/history" />
+    <item android:id="@+id/downloads" android:title="@string/downloads" />
+    <item android:id="@+id/ladybird_menus" android:title="@string/view_menu">
+        <menu>
+            <item android:id="@+id/menu_zoom" android:title="@string/menu_zoom" />
+            <item android:id="@+id/menu_color_scheme" android:title="@string/menu_color_scheme" />
+            <item android:id="@+id/menu_contrast" android:title="@string/menu_contrast" />
+            <item android:id="@+id/menu_motion" android:title="@string/menu_motion" />
+        </menu>
+    </item>
+    <item android:id="@+id/developer_menus" android:title="@string/developer_menu">
+        <menu>
+            <item android:id="@+id/view_source" android:title="@string/view_source" />
+            <item android:id="@+id/menu_inspect" android:title="@string/menu_inspect" />
+            <item android:id="@+id/menu_debug" android:title="@string/menu_debug" />
+        </menu>
+    </item>
+    <item android:id="@+id/settings" android:title="@string/settings" />
+    <item android:id="@+id/ladybird_settings" android:title="@string/ladybird_settings" />
+    <item android:id="@+id/about" android:title="@string/about" />
+    <item android:id="@+id/quit" android:title="@string/quit" />
+</menu>

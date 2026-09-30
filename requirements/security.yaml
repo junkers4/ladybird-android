@@ -137,8 +137,8 @@
 - id: SEC-016
   title: Default-deny site permissions
   description: >-
-    Geolocation is off, autoplay with sound is blocked and pop-ups are blocked by default. JavaScript can be disabled
-    per site.
+    Geolocation is off, autoplay with sound is blocked and pop-ups are blocked by default (the app never passes
+    Ladybird's --allow-popups).
   priority: must
   status: implemented
   verification: unit
@@ -180,6 +180,13 @@
 - id: SEC-021
   title: Lock private tabs behind device authentication
   description: Optionally require the device credential/biometric before showing private tabs after the app was backgrounded.
+  priority: could
+  status: planned
+  verification: instrumented
+
+- id: SEC-022
+  title: Per-site JavaScript switch
+  description: Let the user disable JavaScript for individual sites from the shields panel.
   priority: could
   status: planned
   verification: instrumented

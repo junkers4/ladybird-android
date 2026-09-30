@@ -253,11 +253,38 @@ def native_build_dir(arguments: argparse.Namespace) -> Path:
     return Path(arguments.build_dir) / f"android-{arguments.abi}"
 
 
+def configure_arguments(arguments: argparse.Namespace, ndk: Path) -> list:
+    """The CMake command line for the Android build (requirements BLD-002, SEC-003)."""
+    build_dir = native_build_dir(arguments)
+    stage_dir = Path(arguments.stage_dir)
+    return [
+        "cmake",
+        "-S", LADYBIRD_DIR,
+        "-B", build_dir,
+        "-G", "Ninja",
+        "-DCMAKE_BUILD_TYPE=Release",
+        f"-DANDROID_ABI={arguments.abi}",
+        f"-DANDROID_PLATFORM=android-{arguments.min_sdk}",
+        f"-DANDROID_NDK={ndk}",
+        "-DANDROID_STL=c++_shared",
+        "-DVCPKG_TARGET_ANDROID=ON",
+        f"-DCMAKE_PROJECT_ladybird_INCLUDE={NATIVE_HOOK}",
+        f"-DLADYBIRD_ANDROID_STAGE_DIR={stage_dir.resolve()}",
+        f"-DLADYBIRD_HOST_TOOLS_DIR={host_tools_dir(arguments).resolve()}",
+        f"-DRUST_TARGET_TRIPLE={ABIS[arguments.abi]}",
+        # SEC-003: no WebAssembly JIT (Cranelift) in the Android build.
+        "-DENABLE_CRANELIFT_JIT=OFF",
+        "-DBUILD_TESTING=OFF",
+        "-DENABLE_INSTALL_HEADERS=OFF",
+        # Keep CI disks from filling up with vcpkg build trees.
+        "-DVCPKG_INSTALL_OPTIONS=--clean-after-build",
+        f"-DLADYBIRD_CACHE_DIR={(Path(arguments.build_dir) / 'caches').resolve()}",
+    ]
+
+
 def configure(arguments: argparse.Namespace) -> None:
     ndk = find_ndk(arguments)
     vcpkg_root = Path(arguments.vcpkg_root)
-    build_dir = native_build_dir(arguments)
-    stage_dir = Path(arguments.stage_dir)
 
     env = dict(os.environ)
     env["VCPKG_ROOT"] = str(vcpkg_root)
@@ -266,32 +293,7 @@ def configure(arguments: argparse.Namespace) -> None:
         Path(arguments.vcpkg_binary_cache).mkdir(parents=True, exist_ok=True)
         env["VCPKG_BINARY_SOURCES"] = f"clear;files,{Path(arguments.vcpkg_binary_cache).resolve()},readwrite"
 
-    run(
-        [
-            "cmake",
-            "-S", LADYBIRD_DIR,
-            "-B", build_dir,
-            "-G", "Ninja",
-            "-DCMAKE_BUILD_TYPE=Release",
-            f"-DANDROID_ABI={arguments.abi}",
-            f"-DANDROID_PLATFORM=android-{arguments.min_sdk}",
-            f"-DANDROID_NDK={ndk}",
-            "-DANDROID_STL=c++_shared",
-            "-DVCPKG_TARGET_ANDROID=ON",
-            f"-DCMAKE_PROJECT_ladybird_INCLUDE={NATIVE_HOOK}",
-            f"-DLADYBIRD_ANDROID_STAGE_DIR={stage_dir.resolve()}",
-            f"-DLADYBIRD_HOST_TOOLS_DIR={host_tools_dir(arguments).resolve()}",
-            f"-DRUST_TARGET_TRIPLE={ABIS[arguments.abi]}",
-            # SEC-003: no WebAssembly JIT (Cranelift) in the Android build.
-            "-DENABLE_CRANELIFT_JIT=OFF",
-            "-DBUILD_TESTING=OFF",
-            "-DENABLE_INSTALL_HEADERS=OFF",
-            # Keep CI disks from filling up with vcpkg build trees.
-            "-DVCPKG_INSTALL_OPTIONS=--clean-after-build",
-            f"-DLADYBIRD_CACHE_DIR={(Path(arguments.build_dir) / 'caches').resolve()}",
-        ],
-        env=env,
-    )
+    run(configure_arguments(arguments, ndk), env=env)
 
 
 def build(arguments: argparse.Namespace) -> None:
@@ -303,9 +305,54 @@ def build(arguments: argparse.Namespace) -> None:
     log(f"staged {len(staged)} libraries in {stage}: {', '.join(staged)}")
 
 
+REQUIRED_STAGE_LIBRARIES = (
+    "libladybird_android.so",
+    "libc++_shared.so",
+    "libCompositor.so",
+    "libImageDecoder.so",
+    "libMediaServer.so",
+    "libRequestServer.so",
+    "libWebContent.so",
+    "libWebWorker.so",
+)
+REQUIRED_STAGE_RESOURCES = (
+    "themes/Default.ini",
+    "themes/Dark.ini",
+    "fonts",
+    "ladybird/about-pages/settings.html",
+    "ladybird/about-pages/newtab.html",
+)
+
+
+def stage_problems(stage_dir: Path, abis: list[str]) -> list[str]:
+    """Everything that is missing from a native stage directory (requirement BLD-006)."""
+    problems = []
+    for abi in abis:
+        if abi not in ABIS:
+            problems.append(f"unsupported ABI {abi}")
+            continue
+        jni_dir = stage_dir / "jniLibs" / abi
+        for library in REQUIRED_STAGE_LIBRARIES:
+            path = jni_dir / library
+            if not path.is_file() or path.stat().st_size == 0:
+                problems.append(f"missing {path.relative_to(stage_dir)}")
+    for resource in REQUIRED_STAGE_RESOURCES:
+        if not (stage_dir / "resources" / resource).exists():
+            problems.append(f"missing resources/{resource}")
+    return problems
+
+
+def verify_stage(arguments: argparse.Namespace) -> None:
+    abis = [abi.strip() for abi in (arguments.abis or arguments.abi).split(",") if abi.strip()]
+    problems = stage_problems(Path(arguments.stage_dir), abis)
+    if problems:
+        raise SystemExit("Incomplete native stage:\n  " + "\n  ".join(problems))
+    log(f"native stage for {', '.join(abis)} is complete")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("step", nargs="?", default="all", choices=["patches", "host-tools", "vcpkg", "configure", "build", "all"])
+    parser.add_argument("step", nargs="?", default="all", choices=["patches", "host-tools", "vcpkg", "configure", "build", "verify-stage", "all"])
     parser.add_argument("--abi", default="arm64-v8a", choices=sorted(ABIS))
     parser.add_argument("--min-sdk", type=int, default=DEFAULT_MIN_SDK)
     parser.add_argument("--ndk", help="Path to the Android NDK")
@@ -316,9 +363,10 @@ def main() -> None:
     parser.add_argument("--vcpkg-root", default=str(REPO_ROOT / "build" / "vcpkg"))
     parser.add_argument("--vcpkg-binary-cache", default=os.environ.get("LADYBIRD_VCPKG_BINARY_CACHE"))
     parser.add_argument("--jobs", type=int)
+    parser.add_argument("--abis", help="comma separated ABIs for verify-stage (default: --abi)")
     arguments = parser.parse_args()
 
-    if platform.system() not in ("Linux", "Darwin"):
+    if arguments.step != "verify-stage" and platform.system() not in ("Linux", "Darwin"):
         raise SystemExit("Building the native part is supported on Linux and macOS hosts only")
 
     steps = {
@@ -327,9 +375,10 @@ def main() -> None:
         "vcpkg": ensure_vcpkg,
         "configure": configure,
         "build": build,
+        "verify-stage": verify_stage,
     }
     if arguments.step == "all":
-        for step in ("patches", "host-tools", "vcpkg", "configure", "build"):
+        for step in ("patches", "host-tools", "vcpkg", "configure", "build", "verify-stage"):
             steps[step](arguments)
     else:
         steps[arguments.step](arguments)
