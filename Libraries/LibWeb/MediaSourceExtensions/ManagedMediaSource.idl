@@ -1,8 +1,0 @@
-// https://w3c.github.io/media-source/#managedmediasource-interface
-[Exposed=(Window,DedicatedWorker), Experimental]
-interface ManagedMediaSource : MediaSource {
-    constructor();
-    [FIXME] readonly attribute boolean streaming;
-    attribute EventHandler onstartstreaming;
-    attribute EventHandler onendstreaming;
-};

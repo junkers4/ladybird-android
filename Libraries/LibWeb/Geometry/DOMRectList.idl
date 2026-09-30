@@ -1,7 +1,0 @@
-// https://drafts.fxtf.org/geometry/#domrectlist
-[Exposed=Window]
-interface DOMRectList {
-    getter DOMRect? item(unsigned long index);
-    readonly attribute unsigned long length;
-    iterable<DOMRect>;
-};

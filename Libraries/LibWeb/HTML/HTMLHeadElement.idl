@@ -1,7 +1,0 @@
-// https://html.spec.whatwg.org/multipage/semantics.html#htmlheadelement
-[Exposed=Window]
-interface HTMLHeadElement : HTMLElement {
-
-    [HTMLConstructor] constructor();
-
-};

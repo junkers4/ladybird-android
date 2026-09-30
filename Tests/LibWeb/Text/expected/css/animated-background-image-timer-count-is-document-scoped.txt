@@ -1,2 +1,0 @@
-top document active animations: 0
-iframe document active animations: 1

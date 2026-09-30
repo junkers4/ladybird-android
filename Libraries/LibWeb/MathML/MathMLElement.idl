@@ -1,8 +1,0 @@
-// https://w3c.github.io/mathml-core/#dom-and-javascript
-[Exposed=Window]
-interface MathMLElement : Element { };
-MathMLElement includes GlobalEventHandlers;
-MathMLElement includes HTMLOrSVGOrMathMLElement;
-
-// https://drafts.csswg.org/cssom/#dom-elementcssinlinestyle-style
-MathMLElement includes ElementCSSInlineStyle;

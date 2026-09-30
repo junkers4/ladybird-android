@@ -1,9 +1,0 @@
-// https://html.spec.whatwg.org/multipage/semantics.html#htmldataelement
-[Exposed=Window]
-interface HTMLDataElement : HTMLElement {
-
-    [HTMLConstructor] constructor();
-
-    [CEReactions, Reflect] attribute DOMString value;
-
-};

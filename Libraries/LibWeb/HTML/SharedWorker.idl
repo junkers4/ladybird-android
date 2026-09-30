@@ -1,9 +1,0 @@
-// https://html.spec.whatwg.org/multipage/workers.html#sharedworker
-[Exposed=Window]
-interface SharedWorker : EventTarget {
-    constructor((TrustedScriptURL or Utf16USVString) scriptURL, optional (DOMString or WorkerOptions) options = {});
-
-    readonly attribute MessagePort port;
-};
-
-SharedWorker includes AbstractWorker;

@@ -1,5 +1,0 @@
-// https://webaudio.github.io/web-audio-api/#AudioDestinationNode
-[Exposed=Window]
-interface AudioDestinationNode : AudioNode {
-    readonly attribute unsigned long maxChannelCount;
-};

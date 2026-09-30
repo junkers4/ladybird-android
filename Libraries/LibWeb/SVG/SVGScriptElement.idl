@@ -1,8 +1,0 @@
-// https://w3c.github.io/svgwg/svg2-draft/interact.html#InterfaceSVGScriptElement
-[Exposed=Window]
-interface SVGScriptElement : SVGElement {
-    [Reflect] attribute DOMString type;
-    [Reflect=crossorigin, Enumerated=CORSSettingsAttribute] attribute DOMString? crossOrigin;
-};
-
-SVGScriptElement includes SVGURIReference;

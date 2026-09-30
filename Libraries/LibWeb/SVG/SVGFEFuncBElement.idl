@@ -1,4 +1,0 @@
-// https://drafts.csswg.org/filter-effects-1/#InterfaceSVGFEFuncBElement
-[Exposed=Window]
-interface SVGFEFuncBElement : SVGComponentTransferFunctionElement {
-};

@@ -1,9 +1,0 @@
-// https://html.spec.whatwg.org/multipage/semantics.html#htmlbrelement
-[Exposed=Window]
-interface HTMLBRElement : HTMLElement {
-
-    [HTMLConstructor] constructor();
-
-    [CEReactions, Reflect] attribute DOMString clear;
-
-};

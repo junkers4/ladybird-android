@@ -1,5 +1,0 @@
-// https://html.spec.whatwg.org/multipage/nav-history-apis.html#htmldocument
-[Exposed=Window]
-interface HTMLDocument : Document {
-};
-

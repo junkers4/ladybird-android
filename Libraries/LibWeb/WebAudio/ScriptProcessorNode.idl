@@ -1,6 +1,0 @@
-// https://webaudio.github.io/web-audio-api/#ScriptProcessorNode
-[Exposed=Window]
-interface ScriptProcessorNode : AudioNode {
-    attribute EventHandler onaudioprocess;
-    readonly attribute long bufferSize;
-};

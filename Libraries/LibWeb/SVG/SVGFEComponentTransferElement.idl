@@ -1,7 +1,0 @@
-// https://drafts.csswg.org/filter-effects-1/#InterfaceSVGFEComponentTransferElement
-[Exposed=Window]
-interface SVGFEComponentTransferElement : SVGElement {
-    readonly attribute SVGAnimatedString in1;
-};
-
-SVGFEComponentTransferElement includes SVGFilterPrimitiveStandardAttributes;

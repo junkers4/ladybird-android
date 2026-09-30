@@ -1,8 +1,0 @@
-// https://registry.khronos.org/webgl/specs/latest/2.0/#3.7
-[Exposed=(Window,Worker)]
-interface WebGL2RenderingContext {
-};
-
-WebGL2RenderingContext includes WebGLRenderingContextBase;
-WebGL2RenderingContext includes WebGL2RenderingContextBase;
-WebGL2RenderingContext includes WebGL2RenderingContextOverloads;

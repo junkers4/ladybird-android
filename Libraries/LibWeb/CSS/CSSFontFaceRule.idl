@@ -1,5 +1,0 @@
-// https://drafts.csswg.org/css-fonts/#om-fontface
-[Exposed=Window]
-interface CSSFontFaceRule : CSSRule {
-    readonly attribute CSSStyleDeclaration style;
-};

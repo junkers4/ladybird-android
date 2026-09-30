@@ -1,3 +1,0 @@
-aborted synchronously: false
-Reason type: TimeoutError
-onabort event isTrusted: true

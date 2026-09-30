@@ -1,2 +1,0 @@
-form alive while collection is held: true
-collection.length: 0

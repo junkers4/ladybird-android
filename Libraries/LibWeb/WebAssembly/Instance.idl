@@ -1,7 +1,0 @@
-// https://webassembly.github.io/spec/js-api/#instances
-[LegacyNamespace=WebAssembly, Exposed=*]
-interface Instance {
-    constructor(Module module, optional object importObject);
-
-    readonly attribute object exports;
-};

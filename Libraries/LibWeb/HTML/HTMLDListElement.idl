@@ -1,9 +1,0 @@
-// https://html.spec.whatwg.org/multipage/semantics.html#htmldlistelement
-[Exposed=Window]
-interface HTMLDListElement : HTMLElement {
-
-    [HTMLConstructor] constructor();
-
-    [CEReactions, Reflect] attribute boolean compact;
-
-};

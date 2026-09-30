@@ -1,9 +1,0 @@
-// https://html.spec.whatwg.org/multipage/text-level-semantics.html#htmltimeelement
-[Exposed=Window]
-interface HTMLTimeElement : HTMLElement {
-
-    [HTMLConstructor] constructor();
-
-    [CEReactions, Reflect=datetime] attribute DOMString dateTime;
-
-};
