@@ -1,0 +1,117 @@
+Everywhere: Keep desktop-Linux-only code paths off Android
+
+Bionic defines __linux__, so AK_OS_LINUX is set on Android, but CMake's LINUX
+is not, so the Linux-only sources (Seccomp.cpp, the Compositor/MediaServer
+SandboxLinux.cpp, SystemFFmpeg*.cpp, CrashReportPOSIX.cpp) are not built for
+Android while code guarded by AK_OS_LINUX still calls into them. Linking
+Compositor, MediaServer and the Android UI library failed with undefined
+symbols. Exclude Android at those call sites; Android uses the unimplemented
+sandbox and crash report stubs until it gets a sandbox of its own.
+
+Requirement: SEC-020
+
+diff --git a/Libraries/LibMedia/DecoderRegistry.cpp b/Libraries/LibMedia/DecoderRegistry.cpp
+index e153f655..0511c61a 100644
+--- a/Libraries/LibMedia/DecoderRegistry.cpp
++++ b/Libraries/LibMedia/DecoderRegistry.cpp
+@@ -12,7 +12,7 @@
+ #    include <LibMedia/AudioToolbox/AudioToolboxAudioDecoder.h>
+ #    include <LibMedia/VideoToolbox/VideoToolboxVideoDecoder.h>
+ #endif
+-#ifdef AK_OS_LINUX
++#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
+ #    include <LibMedia/FFmpeg/SystemFFmpegDecoders.h>
+ #endif
+ 
+@@ -54,7 +54,7 @@ static constexpr Array audio_decoders_in_priority_order {
+     AudioDecoderRegistration { AudioToolbox::AudioToolboxAudioDecoder::capabilities, create_audiotoolbox_audio_decoder },
+ #endif
+     AudioDecoderRegistration { FFmpeg::FFmpegAudioDecoder::capabilities, create_ffmpeg_audio_decoder },
+-#ifdef AK_OS_LINUX
++#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
+     AudioDecoderRegistration { FFmpeg::system_ffmpeg_audio_decoder_capabilities, FFmpeg::create_system_ffmpeg_audio_decoder },
+ #endif
+ };
+@@ -71,7 +71,7 @@ static constexpr Array video_decoders_in_priority_order {
+     VideoDecoderRegistration { VideoToolbox::VideoToolboxVideoDecoder::capabilities, create_videotoolbox_video_decoder },
+ #endif
+     VideoDecoderRegistration { FFmpeg::FFmpegVideoDecoder::capabilities, create_ffmpeg_video_decoder },
+-#ifdef AK_OS_LINUX
++#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
+     VideoDecoderRegistration { FFmpeg::system_ffmpeg_video_decoder_capabilities, FFmpeg::create_system_ffmpeg_video_decoder },
+ #endif
+ };
+diff --git a/Libraries/LibWebView/CrashReport.cpp b/Libraries/LibWebView/CrashReport.cpp
+index 55a81983..8d2b87ae 100644
+--- a/Libraries/LibWebView/CrashReport.cpp
++++ b/Libraries/LibWebView/CrashReport.cpp
+@@ -242,7 +242,7 @@ ErrorOr<void> CrashReport::save(int, ByteString const&) { return {}; }
+ 
+ #endif
+ 
+-#if !defined(AK_OS_MACOS) && !defined(AK_OS_LINUX)
++#if !defined(AK_OS_MACOS) && (!defined(AK_OS_LINUX) || defined(AK_OS_ANDROID))
+ ByteString CrashReport::symbolicate_frame(ReportFrame const&)
+ {
+     return {};
+diff --git a/Services/Compositor/Sandbox.h b/Services/Compositor/Sandbox.h
+index 5c0aaec6..fde71b04 100644
+--- a/Services/Compositor/Sandbox.h
++++ b/Services/Compositor/Sandbox.h
+@@ -12,7 +12,7 @@
+ 
+ namespace Compositor {
+ 
+-#if defined(AK_OS_LINUX)
++#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
+ // Landlock confines only the calling thread and the threads that it starts later, so this has to run before the GPU
+ // driver starts its threads. apply_sandbox() then installs the rest of the sandbox.
+ [[nodiscard]] ErrorOr<void> restrict_filesystem(StringView resource_root);
+diff --git a/Services/Compositor/main.cpp b/Services/Compositor/main.cpp
+index c82d368f..6b618976 100644
+--- a/Services/Compositor/main.cpp
++++ b/Services/Compositor/main.cpp
+@@ -68,7 +68,7 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
+     if (force_fontconfig)
+         Gfx::FontDatabase::the().set_force_freetype_rasterization(true);
+ 
+-#if defined(AK_OS_LINUX)
++#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
+     // NB: The GPU driver starts threads, and Landlock does not confine a thread that already runs. Seccomp covers every
+     //     thread, so the rest of the sandbox can wait until the driver is done with the syscalls that only its setup uses.
+     if (!disable_sandbox)
+diff --git a/Services/MediaServer/main.cpp b/Services/MediaServer/main.cpp
+index b9630561..656368be 100644
+--- a/Services/MediaServer/main.cpp
++++ b/Services/MediaServer/main.cpp
+@@ -16,7 +16,7 @@
+ #include <MediaServer/ConnectionFromClient.h>
+ #include <MediaServer/Sandbox.h>
+ 
+-#if defined(AK_OS_LINUX)
++#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
+ #    include <LibMedia/FFmpeg/SystemFFmpeg.h>
+ #endif
+ 
+@@ -53,7 +53,7 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
+ 
+     auto& event_loop = Core::EventLoop::initialize_for_current_thread();
+ 
+-#if defined(AK_OS_LINUX)
++#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
+     if (connect_broker_fd != -1)
+         Sandbox::set_connect_broker_fd(connect_broker_fd);
+     // The system library's dependencies make syscalls the sandbox will not allow, so it loads first.
+diff --git a/Services/WebContent/main.cpp b/Services/WebContent/main.cpp
+index f652d352..8d6a6430 100644
+--- a/Services/WebContent/main.cpp
++++ b/Services/WebContent/main.cpp
+@@ -236,7 +236,7 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
+         JS::set_log_all_js_exceptions(true);
+     }
+ 
+-#if defined(AK_OS_LINUX)
++#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
+     if (connect_broker_fd != -1)
+         Sandbox::set_connect_broker_fd(connect_broker_fd);
+ #endif
