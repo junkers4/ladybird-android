@@ -61,14 +61,16 @@ jobs:
             pkg-config qemu-user-static tar unzip zip
           python3 -m pip install "ziglang==${ZIG_VERSION}" pyyaml requests six
 
-      - name: Install Rust targets
+      - name: Install Rust toolchain and Android targets
         working-directory: ladybird
         run: |
-          rustup show active-toolchain || rustup toolchain install
+          channel=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)
           case "${ABI}" in
-            arm64-v8a) rustup target add aarch64-linux-android ;;
-            x86_64) rustup target add x86_64-linux-android ;;
+            arm64-v8a) target=aarch64-linux-android ;;
+            x86_64) target=x86_64-linux-android ;;
           esac
+          rustup toolchain install "${channel}" --profile minimal --target "${target}"
+          rustup target list --installed --toolchain "${channel}"
 
       - name: Install Android NDK
         run: |
