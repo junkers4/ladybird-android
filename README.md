@@ -13,7 +13,8 @@ included as a git submodule (`ladybird/`). This repository only adds what Androi
 | `requirements/` | Every feature is a requirement with an ID; every requirement must be covered by tests. |
 | `docs/` | Architecture, security model and build notes. |
 
-> Status: early development. See `docs/` and the CI workflows for what is built and tested.
+> Status: early development. See [docs/architecture.md](docs/architecture.md), [docs/security.md](docs/security.md)
+> and [docs/building.md](docs/building.md). The APK is built by the "Native + APK" workflow and uploaded as an artifact.
 
 ## Quick start
 
