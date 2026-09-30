@@ -22,4 +22,8 @@ if (NOT LADYBIRD_ANDROID_STAGE_DIR)
     message(FATAL_ERROR "LADYBIRD_ANDROID_STAGE_DIR must point to the directory where the APK payload is staged")
 endif()
 
+# The helpers run as ordinary executables (ARCH-001), so ask upstream for the desktop-style static service
+# libraries instead of its Android Service/JNI variants (patch 0009).
+set(LADYBIRD_ANDROID_EXECUTABLE_HELPERS ON)
+
 cmake_language(DEFER CALL include "${LADYBIRD_ANDROID_NATIVE_DIR}/LadybirdAndroidTargets.cmake")

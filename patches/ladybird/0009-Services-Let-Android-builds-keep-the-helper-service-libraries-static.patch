@@ -1,0 +1,59 @@
+Services: Let Android builds keep the helper service libraries static
+
+On Android the WebContent, RequestServer and ImageDecoder service libraries
+are built as shared libraries with the JNI glue of UI/Android. An Android app
+that launches the helpers as ordinary executables (like the desktop builds
+do) sets LADYBIRD_ANDROID_EXECUTABLE_HELPERS to get the desktop setup
+instead. Without it, librequestserverservice.so failed to link because
+g_resource_substitution_map lives in RequestServer's main.cpp.
+
+Requirement: ARCH-001
+
+diff --git a/Services/ImageDecoder/CMakeLists.txt b/Services/ImageDecoder/CMakeLists.txt
+index 8961a55f..e712fb77 100644
+--- a/Services/ImageDecoder/CMakeLists.txt
++++ b/Services/ImageDecoder/CMakeLists.txt
+@@ -6,7 +6,7 @@ set(SOURCES
+     ConnectionFromClient.cpp
+ )
+ 
+-if (ANDROID)
++if (ANDROID AND NOT LADYBIRD_ANDROID_EXECUTABLE_HELPERS)
+     add_library(imagedecoderservice SHARED
+         ${LADYBIRD_SOURCE_DIR}/UI/Android/src/main/cpp/ImageDecoderService.cpp
+         ${LADYBIRD_SOURCE_DIR}/UI/Android/src/main/cpp/LadybirdServiceBaseJNI.cpp
+diff --git a/Services/RequestServer/CMakeLists.txt b/Services/RequestServer/CMakeLists.txt
+index 604cdf23..3bab8dd2 100644
+--- a/Services/RequestServer/CMakeLists.txt
++++ b/Services/RequestServer/CMakeLists.txt
+@@ -26,7 +26,7 @@ set(GENERATED_SOURCES
+ )
+ 
+ set(RS_LIB_TYPE STATIC)
+-if (ANDROID)
++if (ANDROID AND NOT LADYBIRD_ANDROID_EXECUTABLE_HELPERS)
+     list(APPEND SOURCES
+         ${LADYBIRD_SOURCE_DIR}/UI/Android/src/main/cpp/RequestServerService.cpp
+         ${LADYBIRD_SOURCE_DIR}/UI/Android/src/main/cpp/LadybirdServiceBaseJNI.cpp
+@@ -58,7 +58,7 @@ if (HAIKU)
+     # Haiku has networking related functions in the network library
+     target_link_libraries(RequestServer PRIVATE network)
+ endif()
+-if (ANDROID)
++if (ANDROID AND NOT LADYBIRD_ANDROID_EXECUTABLE_HELPERS)
+     # We need s_ladybird_resource_root from LibWebView
+     target_link_libraries(requestserverservice PUBLIC LibWebView)
+ endif()
+diff --git a/Services/WebContent/CMakeLists.txt b/Services/WebContent/CMakeLists.txt
+index 2fab5943..1fd79988 100644
+--- a/Services/WebContent/CMakeLists.txt
++++ b/Services/WebContent/CMakeLists.txt
+@@ -13,7 +13,7 @@ set(SOURCES
+     WebUIConnection.cpp
+ )
+ 
+-if (ANDROID)
++if (ANDROID AND NOT LADYBIRD_ANDROID_EXECUTABLE_HELPERS)
+     add_library(webcontentservice SHARED
+         ${LADYBIRD_SOURCE_DIR}/UI/Android/src/main/cpp/WebContentService.cpp
+         ${LADYBIRD_SOURCE_DIR}/UI/Android/src/main/cpp/WebContentServiceJNI.cpp

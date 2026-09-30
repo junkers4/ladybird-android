@@ -98,6 +98,15 @@ class ConfigureTests(unittest.TestCase):
         self.assertIn("cmake_language(DEFER CALL include", hook)
         self.assertNotIn("add_subdirectory", hook)
 
+    def test_hook_requests_executable_helpers_that_upstream_honours(self):
+        # ARCH-001: helpers are executables, so the service libraries must stay static (patch 0009).
+        hook = (REPO / "native/LadybirdAndroid.cmake").read_text()
+        self.assertIn("set(LADYBIRD_ANDROID_EXECUTABLE_HELPERS ON)", hook)
+        patch = (REPO / "patches/ladybird/0009-Services-Let-Android-builds-keep-the-helper-service-libraries-static.patch").read_text()
+        for service in ("WebContent", "RequestServer", "ImageDecoder"):
+            self.assertIn(f"Services/{service}/CMakeLists.txt", patch)
+        self.assertIn("if (ANDROID AND NOT LADYBIRD_ANDROID_EXECUTABLE_HELPERS)", patch)
+
 
 class HostToolsTests(unittest.TestCase):
     """BLD-004."""
