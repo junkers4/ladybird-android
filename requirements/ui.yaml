@@ -140,3 +140,12 @@
   priority: must
   status: implemented
   verification: unit
+
+- id: UI-018
+  title: GrapheneOS-style launcher icon
+  description: >-
+    The launcher icon is an adaptive icon in the style of the GrapheneOS apps: a single black ladybird glyph on a
+    white background, and the same glyph as the monochrome layer so Android's themed icons can tint it.
+  priority: could
+  status: implemented
+  verification: static
